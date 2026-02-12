@@ -133,7 +133,12 @@ pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Resu
     file.write_all(content.as_bytes())?;
     file.flush()?;
 
-    std::fs::rename(&temp_path, path)?;
+    let result = std::fs::rename(&temp_path, path);
+
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp_path);
+        return result.map_err(|e| anyhow::anyhow!("Failed to rename temp file: {}", e));
+    }
 
     Ok(())
 }

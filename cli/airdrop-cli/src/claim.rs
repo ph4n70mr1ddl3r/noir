@@ -197,7 +197,6 @@ fn main() -> Result<()> {
     let index_map = load_index_map(&cli.index_map).context("Failed to load index map")?;
 
     println!("Parsing private key...");
-    let mut private_key_bytes = [0u8; 32];
     let key_str = if cli.private_key == "-" {
         let mut buffer = String::new();
         std::io::stdin()
@@ -208,7 +207,18 @@ fn main() -> Result<()> {
         cli.private_key.clone()
     };
     let key_str = key_str.strip_prefix("0x").unwrap_or(&key_str);
-    hex::decode_to_slice(key_str, &mut private_key_bytes).context("Invalid private key format")?;
+    if key_str.is_empty() {
+        anyhow::bail!("Private key is empty");
+    }
+    let key_bytes = hex::decode(key_str).context("Invalid private key format")?;
+    if key_bytes.len() != 32 {
+        anyhow::bail!(
+            "Invalid private key length: expected 32 bytes, got {}",
+            key_bytes.len()
+        );
+    }
+    let mut private_key_bytes = [0u8; 32];
+    private_key_bytes.copy_from_slice(&key_bytes);
 
     let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;
 
