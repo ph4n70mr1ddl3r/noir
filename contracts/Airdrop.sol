@@ -12,9 +12,10 @@ interface IERC20 {
 
 contract ReentrancyGuard {
     uint256 private locked = 1;
+    error ReentrancyGuardReentrantCall();
 
     modifier nonReentrant() {
-        if (locked != 1) revert();
+        if (locked != 1) revert ReentrancyGuardReentrantCall();
         locked = 2;
         _;
         locked = 1;
@@ -41,6 +42,7 @@ contract Airdrop is ReentrancyGuard {
 
     event Claimed(address indexed recipient, bytes32 indexed nullifier);
     event RootUpdated(bytes32 oldRoot, bytes32 newRoot);
+    event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
 
     constructor(
         address _token,
@@ -89,7 +91,9 @@ contract Airdrop is ReentrancyGuard {
     }
 
     function updateVerifier(address newVerifier) external onlyOwner {
+        address oldVerifier = address(verifier);
         verifier = IUltraVerifier(newVerifier);
+        emit VerifierUpdated(oldVerifier, newVerifier);
     }
 
     function withdrawTokens(uint256 amount) external onlyOwner {

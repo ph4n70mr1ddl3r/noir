@@ -1,7 +1,7 @@
 use std::hash::poseidon2;
 
 global MERKLE_DEPTH = 26;
-global NULLIFIER_DOMAIN_SEPARATOR = 2705449420;
+global NULLIFIER_DOMAIN_SEPARATOR = 0xa1b2c3d4;
 
 struct MerkleProof {
     path: [Field; MERKLE_DEPTH],

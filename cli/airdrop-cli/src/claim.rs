@@ -9,27 +9,16 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
-const NULLIFIER_DOMAIN_SEPARATOR: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
+use crate::common::{get_merkle_proof, keccak256_hash};
 
-fn get_merkle_proof(tree: &[Vec<[u8; 32]>], leaf_index: usize) -> Vec<[u8; 32]> {
-    let mut proof = Vec::new();
-    let mut current_index = leaf_index;
+const NULLIFIER_DOMAIN_SEPARATOR: u32 = 0xa1b2c3d4;
 
-    for level in tree.iter().skip(1) {
-        let sibling_index = if current_index % 2 == 0 {
-            current_index + 1
-        } else {
-            current_index - 1
-        };
-
-        if sibling_index < level.len() {
-            proof.push(level[sibling_index]);
-        }
-
-        current_index /= 2;
-    }
-
-    proof
+pub fn compute_nullifier(private_key_bytes: &[u8]) -> [u8; 32] {
+    let mut input = private_key_bytes.to_vec();
+    let separator_bytes = NULLIFIER_DOMAIN_SEPARATOR.to_be_bytes();
+    input.extend_from_slice(&separator_bytes);
+    let hash = Keccak256::new().chain_update(input).finalize();
+    hash.into()
 }
 
 #[derive(Parser)]
