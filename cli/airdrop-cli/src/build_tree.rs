@@ -36,7 +36,7 @@ struct Cli {
 /// A tuple containing the tree (vector of levels) and the root hash
 pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]) {
     let mut tree: Vec<Vec<[u8; 32]>> = vec![leaves];
-    let mut level = tree[0].clone();
+    let mut level = &tree[0];
 
     while level.len() > 1 {
         let mut next_level = Vec::new();
@@ -48,7 +48,7 @@ pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]
         }
 
         tree.push(next_level.clone());
-        level = next_level;
+        level = tree.last().unwrap();
     }
 
     let root = tree.last().map(|level| level[0]).unwrap_or([0u8; 32]);

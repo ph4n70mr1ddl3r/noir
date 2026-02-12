@@ -6,6 +6,12 @@ use std::path::{Path, PathBuf};
 
 // TODO: Replace mock proof generation with actual Noir proof generation
 // using the Noir SDK or calling nargo programmatically
+//
+// WARNING: This function currently returns mock/hardcoded values and is NOT suitable for production use.
+// The actual proof must be generated using the Noir circuit. For proper integration:
+// 1. Compile the Noir circuit using nargo
+// 2. Generate the proof with the claim inputs
+// 3. Return the actual proof bytes and verified public inputs
 #[derive(Parser)]
 #[command(name = "prove")]
 #[command(about = "Generate Noir proof from claim JSON", long_about = None)]
@@ -39,6 +45,8 @@ struct ProofOutput {
     public_inputs: Vec<String>,
 }
 
+// WARNING: This is a MOCK implementation that returns hardcoded values.
+// Do NOT use in production. Replace with actual Noir proof generation.
 fn generate_noir_proof(claim: &ClaimInput, circuit_path: &Path) -> Result<ProofOutput> {
     let _prover_path = circuit_path.join("target").join("airdrop.json");
 

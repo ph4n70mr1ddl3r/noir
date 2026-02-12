@@ -35,7 +35,8 @@ struct Cli {
     #[arg(short = 'i', long)]
     index_map: PathBuf,
 
-    /// Private key (hex format, without 0x prefix)
+    /// Private key (hex format, with or without 0x prefix)
+    /// Alternatively, use "-" to read from stdin (more secure)
     #[arg(short = 'k', long)]
     private_key: String,
 
@@ -122,18 +123,42 @@ fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
             if level >= level_entries.len() {
                 level_entries.push(HashMap::new());
             }
+            if level_entries[level].contains_key(&index) {
+                anyhow::bail!("Duplicate entry at level {}, index {}", level, index);
+            }
             level_entries[level].insert(index, hash);
             max_level = max_level.max(level);
         }
     }
 
-    let mut tree = Vec::new();
-    for level_map in &level_entries {
+    if level_entries.is_empty() {
+        anyhow::bail!("Merkle tree file is empty");
+    }
+
+    let mut tree: Vec<Vec<[u8; 32]>> = Vec::new();
+    for (level_num, level_map) in level_entries.iter().enumerate() {
+        if level_map.is_empty() {
+            anyhow::bail!("Level {} is empty", level_num);
+        }
         let max_index = level_map.keys().max().unwrap_or(&0);
         let mut level = vec![[0u8; 32]; max_index + 1];
         for (&idx, &hash) in level_map {
             level[idx] = hash;
         }
+
+        if level_num > 0 {
+            let expected_parent_count = tree[level_num - 1].len().div_ceil(2);
+            if level.len() != expected_parent_count {
+                anyhow::bail!(
+                    "Invalid tree structure: level {} has {} nodes but expected {} based on level {}",
+                    level_num,
+                    level.len(),
+                    expected_parent_count,
+                    level_num - 1
+                );
+            }
+        }
+
         tree.push(level);
     }
 
@@ -161,10 +186,16 @@ fn main() -> Result<()> {
 
     println!("Parsing private key...");
     let mut private_key_bytes = [0u8; 32];
-    let key_str = cli
-        .private_key
-        .strip_prefix("0x")
-        .unwrap_or(&cli.private_key);
+    let key_str_owned = if cli.private_key == "-" {
+        let mut buffer = String::new();
+        std::io::stdin()
+            .read_line(&mut buffer)
+            .context("Failed to read private key from stdin")?;
+        buffer.trim().to_string()
+    } else {
+        cli.private_key.clone()
+    };
+    let key_str = key_str_owned.strip_prefix("0x").unwrap_or(&key_str_owned);
     hex::decode_to_slice(key_str, &mut private_key_bytes).context("Invalid private key format")?;
 
     let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;
