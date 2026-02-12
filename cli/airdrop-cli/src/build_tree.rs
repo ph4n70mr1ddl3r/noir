@@ -1,24 +1,10 @@
+use airdrop_cli::{address_to_leaf, keccak256_hash};
 use anyhow::{Context, Result};
 use clap::Parser;
-use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-
-fn keccak256_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
-    let hash = Keccak256::new()
-        .chain_update(left)
-        .chain_update(right)
-        .finalize();
-    hash.into()
-}
-
-fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
-    let mut leaf = [0u8; 32];
-    leaf[12..32].copy_from_slice(address);
-    leaf
-}
 
 #[derive(Parser)]
 #[command(name = "build-tree")]
@@ -81,11 +67,7 @@ fn main() -> Result<()> {
             continue;
         }
 
-        let addr_str = if trimmed.starts_with("0x") {
-            &trimmed[2..]
-        } else {
-            trimmed
-        };
+        let addr_str = trimmed.strip_prefix("0x").unwrap_or(trimmed);
         let mut address = [0u8; 20];
         hex::decode_to_slice(addr_str, &mut address).context("Invalid address format")?;
         let leaf = address_to_leaf(&address);

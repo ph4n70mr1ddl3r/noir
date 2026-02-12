@@ -19,7 +19,7 @@ pub fn get_merkle_proof(tree: &[Vec<[u8; 32]>], leaf_index: usize) -> Vec<[u8; 3
     let mut current_index = leaf_index;
 
     for level in tree.iter().skip(1) {
-        let sibling_index = if current_index % 2 == 0 {
+        let sibling_index = if current_index.is_multiple_of(2) {
             current_index + 1
         } else {
             current_index - 1

@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(name = "prove")]
@@ -22,6 +22,7 @@ struct Cli {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ClaimInput {
     merkle_root: String,
     recipient: String,
@@ -36,8 +37,8 @@ struct ProofOutput {
     public_inputs: Vec<String>,
 }
 
-fn generate_noir_proof(claim: &ClaimInput, circuit_path: &PathBuf) -> Result<ProofOutput> {
-    let prover_path = circuit_path.join("target").join("airdrop.json");
+fn generate_noir_proof(claim: &ClaimInput, circuit_path: &Path) -> Result<ProofOutput> {
+    let _prover_path = circuit_path.join("target").join("airdrop.json");
 
     let public_inputs = vec![
         claim.merkle_root.clone(),

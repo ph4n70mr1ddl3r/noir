@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use k256::ecdsa::SigningKey;
-use k256::elliptic_curve::sec1::ToEncodedPoint;
 use serde::Serialize;
 use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
@@ -9,17 +8,9 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
-use crate::common::{get_merkle_proof, keccak256_hash};
+use airdrop_cli::get_merkle_proof;
 
-const NULLIFIER_DOMAIN_SEPARATOR: u32 = 0xa1b2c3d4;
-
-pub fn compute_nullifier(private_key_bytes: &[u8]) -> [u8; 32] {
-    let mut input = private_key_bytes.to_vec();
-    let separator_bytes = NULLIFIER_DOMAIN_SEPARATOR.to_be_bytes();
-    input.extend_from_slice(&separator_bytes);
-    let hash = Keccak256::new().chain_update(input).finalize();
-    hash.into()
-}
+const NULLIFIER_DOMAIN_SEPARATOR: [u8; 4] = 0xa1b2c3d4u32.to_be_bytes();
 
 #[derive(Parser)]
 #[command(name = "claim")]
@@ -205,7 +196,7 @@ fn main() -> Result<()> {
     };
 
     println!("Writing claim JSON to {:?}...", cli.output);
-    let mut file = File::create(&cli.output).context("Failed to create output file")?;
+    let file = File::create(&cli.output).context("Failed to create output file")?;
     serde_json::to_writer_pretty(&file, &claim).context("Failed to write JSON")?;
 
     println!("\nClaim generated successfully!");
