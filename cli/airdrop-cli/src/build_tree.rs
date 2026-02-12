@@ -27,6 +27,13 @@ struct Cli {
     tree_output: Option<PathBuf>,
 }
 
+/// Builds a Merkle tree from a list of leaf hashes.
+///
+/// # Arguments
+/// * `leaves` - Vector of 32-byte leaf hashes
+///
+/// # Returns
+/// A tuple containing the tree (vector of levels) and the root hash
 pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]) {
     let mut tree: Vec<Vec<[u8; 32]>> = vec![leaves];
     let mut level = tree[0].clone();
@@ -67,14 +74,20 @@ fn main() -> Result<()> {
             continue;
         }
 
-        let addr_str = trimmed.strip_prefix("0x").unwrap_or(trimmed);
-        let mut address = [0u8; 20];
-        hex::decode_to_slice(addr_str, &mut address).context("Invalid address format")?;
+        let address = airdrop_cli::parse_address(trimmed)
+            .with_context(|| format!("Invalid address format at line {}", line_num + 1))?;
         let leaf = address_to_leaf(&address);
+        if index_map.contains_key(&address) {
+            anyhow::bail!(
+                "Duplicate address found at line {}: 0x{}",
+                line_num + 1,
+                hex::encode(address)
+            );
+        }
         index_map.insert(address, leaves.len());
         leaves.push(leaf);
 
-        if (line_num + 1) % 1_000_000 == 0 {
+        if (line_num + 1) % 100_000 == 0 {
             println!("Processed {} addresses...", line_num + 1);
         }
     }

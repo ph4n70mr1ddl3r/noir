@@ -8,9 +8,20 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
-use airdrop_cli::get_merkle_proof;
+use airdrop_cli::{get_merkle_proof, parse_address};
 
 const NULLIFIER_DOMAIN_SEPARATOR: [u8; 4] = 0xa1b2c3d4u32.to_be_bytes();
+
+/// Converts a byte array to a hex string field representation.
+///
+/// # Arguments
+/// * `bytes` - The byte array to convert
+///
+/// # Returns
+/// Hex string with "0x" prefix
+pub fn bytes_to_field(bytes: &[u8]) -> String {
+    format!("0x{}", hex::encode(bytes))
+}
 
 #[derive(Parser)]
 #[command(name = "claim")]
@@ -52,10 +63,15 @@ struct ClaimOutput {
     claimer_address: String,
 }
 
-pub fn bytes_to_field(bytes: &[u8]) -> String {
-    format!("0x{}", hex::encode(bytes))
-}
-
+/// Computes a nullifier from a private key to prevent double-claiming.
+///
+/// Uses Keccak256 with a domain separator to ensure uniqueness.
+///
+/// # Arguments
+/// * `private_key_bytes` - 32-byte private key
+///
+/// # Returns
+/// 32-byte nullifier hash
 pub fn compute_nullifier(private_key_bytes: &[u8]) -> [u8; 32] {
     let hash = Keccak256::new()
         .chain_update(private_key_bytes)
@@ -73,13 +89,7 @@ fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
         let line = line.context("Failed to read line")?;
         let parts: Vec<&str> = line.split(':').collect();
         if parts.len() == 2 {
-            let addr_str = if parts[0].starts_with("0x") {
-                &parts[0][2..]
-            } else {
-                parts[0]
-            };
-            let mut address = [0u8; 20];
-            hex::decode_to_slice(addr_str, &mut address).context("Invalid address format")?;
+            let address = parse_address(parts[0]).context("Invalid address format")?;
             let index: usize = parts[1].parse().context("Invalid index format")?;
             map.insert(address, index);
         }
@@ -174,13 +184,7 @@ fn main() -> Result<()> {
     let nullifier = compute_nullifier(&private_key_bytes);
 
     println!("Parsing recipient address...");
-    let recipient_str = if cli.recipient.starts_with("0x") {
-        &cli.recipient[2..]
-    } else {
-        &cli.recipient
-    };
-    let mut recipient = [0u8; 20];
-    hex::decode_to_slice(recipient_str, &mut recipient).context("Invalid recipient address")?;
+    let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;
 
     let claim = ClaimOutput {
         merkle_root: cli.root,

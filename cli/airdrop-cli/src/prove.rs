@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+// TODO: Replace mock proof generation with actual Noir proof generation
+// using the Noir SDK or calling nargo programmatically
 #[derive(Parser)]
 #[command(name = "prove")]
 #[command(about = "Generate Noir proof from claim JSON", long_about = None)]
