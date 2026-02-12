@@ -85,14 +85,23 @@ fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
     let reader = BufReader::new(file);
     let mut map = HashMap::new();
 
-    for line in reader.lines() {
+    for (line_num, line) in reader.lines().enumerate() {
         let line = line.context("Failed to read line")?;
-        let parts: Vec<&str> = line.split(':').collect();
-        if parts.len() == 2 {
-            let address = parse_address(parts[0]).context("Invalid address format")?;
-            let index: usize = parts[1].parse().context("Invalid index format")?;
-            map.insert(address, index);
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
         }
+        let parts: Vec<&str> = trimmed.split(':').collect();
+        if parts.len() != 2 {
+            anyhow::bail!(
+                "Invalid format at line {}: expected 'address:index', got '{}'",
+                line_num + 1,
+                trimmed
+            );
+        }
+        let address = parse_address(parts[0]).context("Invalid address format")?;
+        let index: usize = parts[1].parse().context("Invalid index format")?;
+        map.insert(address, index);
     }
 
     if map.is_empty() {
@@ -189,7 +198,7 @@ fn main() -> Result<()> {
 
     println!("Parsing private key...");
     let mut private_key_bytes = [0u8; 32];
-    let key_str_owned = if cli.private_key == "-" {
+    let key_str = if cli.private_key == "-" {
         let mut buffer = String::new();
         std::io::stdin()
             .read_line(&mut buffer)
@@ -198,7 +207,7 @@ fn main() -> Result<()> {
     } else {
         cli.private_key.clone()
     };
-    let key_str = key_str_owned.strip_prefix("0x").unwrap_or(&key_str_owned);
+    let key_str = key_str.strip_prefix("0x").unwrap_or(&key_str);
     hex::decode_to_slice(key_str, &mut private_key_bytes).context("Invalid private key format")?;
 
     let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;

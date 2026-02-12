@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::fs::File;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 // TODO: Replace mock proof generation with actual Noir proof generation
@@ -48,6 +50,10 @@ struct ProofOutput {
 // WARNING: This is a MOCK implementation that returns hardcoded values.
 // Do NOT use in production. Replace with actual Noir proof generation.
 fn generate_noir_proof(claim: &ClaimInput, circuit_path: &Path) -> Result<ProofOutput> {
+    if !circuit_path.exists() {
+        anyhow::bail!("Circuit directory does not exist: {:?}", circuit_path);
+    }
+
     let _prover_path = circuit_path.join("target").join("airdrop.json");
 
     let public_inputs = vec![
@@ -72,15 +78,26 @@ fn main() -> Result<()> {
     let claim: ClaimInput =
         serde_json::from_str(&claim_content).context("Failed to parse claim JSON")?;
 
+    eprintln!();
+    eprintln!("WARNING: This is a MOCK proof implementation for development only!");
+    eprintln!(
+        "The generated proof is NOT cryptographically valid and should NOT be used in production."
+    );
+    eprintln!("Replace with actual Noir proof generation before deployment.");
+    eprintln!();
+
     println!("Generating Noir proof...");
     let proof_output = generate_noir_proof(&claim, &cli.circuit)?;
 
     println!("Writing proof to {:?}...", cli.output);
-    fs::write(
-        &cli.output,
-        serde_json::to_string_pretty(&proof_output).context("Failed to serialize proof")?,
-    )
-    .context("Failed to write proof file")?;
+    let json_output =
+        serde_json::to_string_pretty(&proof_output).context("Failed to serialize proof")?;
+    let temp_path = cli.output.with_extension("tmp");
+    let mut file = File::create(&temp_path).context("Failed to create temp file")?;
+    file.write_all(json_output.as_bytes())
+        .context("Failed to write to temp file")?;
+    file.flush().context("Failed to flush temp file")?;
+    std::fs::rename(&temp_path, &cli.output).context("Failed to move temp file to output")?;
 
     println!("\nProof generated successfully!");
     println!("Public inputs: {:?}", proof_output.public_inputs);

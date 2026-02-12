@@ -34,6 +34,10 @@ struct Cli {
 ///
 /// # Returns
 /// A tuple containing the tree (vector of levels) and the root hash
+///
+/// # Note
+/// For odd number of nodes at any level, the last node is duplicated
+/// (hashed with itself) to maintain the binary tree structure.
 pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]) {
     if leaves.is_empty() {
         return (vec![], [0u8; 32]);

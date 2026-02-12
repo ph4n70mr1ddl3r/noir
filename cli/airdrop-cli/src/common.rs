@@ -89,7 +89,7 @@ pub fn get_merkle_proof(
 
     for level in tree.iter().skip(1) {
         if level.is_empty() {
-            break;
+            anyhow::bail!("Encountered empty level in Merkle tree");
         }
 
         let sibling_index = if current_index.is_multiple_of(2) {
@@ -98,7 +98,7 @@ pub fn get_merkle_proof(
             current_index - 1
         };
 
-        if sibling_index > 0 && sibling_index < level.len() {
+        if sibling_index < level.len() {
             proof.push(level[sibling_index]);
         }
 
