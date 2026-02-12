@@ -10,12 +10,24 @@ interface IERC20 {
     function balanceOf(address account) external view returns (uint256);
 }
 
+contract ReentrancyGuard {
+    uint256 private locked = 1;
+
+    modifier nonReentrant() {
+        if (locked != 1) revert();
+        locked = 2;
+        _;
+        locked = 1;
+    }
+}
+
 contract Airdrop {
     error NullifierAlreadyUsed();
     error InvalidProof();
     error InvalidRoot();
     error InsufficientBalance();
     error NotOwner();
+    error TransferFailed();
 
     address public owner;
     IERC20 public token;
@@ -50,7 +62,7 @@ contract Airdrop {
         uint256[] calldata proof,
         bytes32 nullifier,
         address recipient
-    ) external {
+    ) external nonReentrant {
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
 
         uint256[] memory publicInputs = new uint256[](3);
@@ -81,8 +93,7 @@ contract Airdrop {
     }
 
     function withdrawTokens(uint256 amount) external onlyOwner {
-        bool success = token.transfer(owner, amount);
-        require(success, "Transfer failed");
+        if (!token.transfer(owner, amount)) revert TransferFailed();
     }
 
     function isNullifierUsed(bytes32 nullifier) external view returns (bool) {

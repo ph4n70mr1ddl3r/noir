@@ -1,6 +1,7 @@
 use std::hash::poseidon2;
 
 global MERKLE_DEPTH = 26;
+global NULLIFIER_DOMAIN_SEPARATOR = 0xa1b2c3d4;
 
 struct MerkleProof {
     path: [Field; MERKLE_DEPTH],
@@ -26,7 +27,7 @@ fn derive_address(private_key: Field) -> Field {
 }
 
 fn compute_nullifier(private_key: Field) -> Field {
-    poseidon2([private_key, Field::from(0xa1b2c3d4)])
+    poseidon2([private_key, Field::from(NULLIFIER_DOMAIN_SEPARATOR)])
 }
 
 fn main(

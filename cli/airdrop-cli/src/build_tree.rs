@@ -1,10 +1,24 @@
+use anyhow::{Context, Result};
+use clap::Parser;
+use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use anyhow::{Result, Context};
-use clap::Parser;
-use sha3::{Digest, Keccak256};
+
+fn keccak256_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
+    let hash = Keccak256::new()
+        .chain_update(left)
+        .chain_update(right)
+        .finalize();
+    hash.into()
+}
+
+fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
+    let mut leaf = [0u8; 32];
+    leaf[12..32].copy_from_slice(address);
+    leaf
+}
 
 #[derive(Parser)]
 #[command(name = "build-tree")]
@@ -27,20 +41,6 @@ struct Cli {
     tree_output: Option<PathBuf>,
 }
 
-pub fn poseidon2_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32 {
-    let hash = Keccak256::new()
-        .chain_update(left)
-        .chain_update(right)
-        .finalize();
-    hash.into()
-}
-
-pub fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
-    let mut leaf = [0u8; 32];
-    leaf[12..32].copy_from_slice(address);
-    leaf
-}
-
 pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]) {
     let mut tree: Vec<Vec<[u8; 32]>> = vec![leaves];
     let mut level = tree[0].clone();
@@ -50,46 +50,17 @@ pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]
 
         for chunk in level.chunks(2) {
             let left = chunk[0];
-            let right = if chunk.len() == 2 {
-                chunk[1]
-            } else {
-                left
-            };
-            next_level.push(poseidon2_hash(left, right));
+            let right = if chunk.len() == 2 { chunk[1] } else { left };
+            next_level.push(keccak256_hash(left, right));
         }
 
         tree.push(next_level.clone());
         level = next_level;
     }
 
-    let root = if tree.is_empty() {
-        [0u8; 32]
-    } else {
-        tree.last().unwrap()[0]
-    };
+    let root = tree.last().map(|level| level[0]).unwrap_or([0u8; 32]);
 
     (tree, root)
-}
-
-pub fn get_merkle_proof(tree: &Vec<Vec<[u8; 32]>>, leaf_index: usize) -> Vec<[u8; 32]> {
-    let mut proof = Vec::new();
-    let mut current_index = leaf_index;
-
-    for level in tree.iter().skip(1) {
-        let sibling_index = if current_index % 2 == 0 {
-            current_index + 1
-        } else {
-            current_index - 1
-        };
-
-        if sibling_index < level.len() {
-            proof.push(level[sibling_index]);
-        }
-
-        current_index /= 2;
-    }
-
-    proof
 }
 
 fn main() -> Result<()> {
@@ -138,7 +109,8 @@ fn main() -> Result<()> {
 
     let mut index_file = File::create(&cli.index_output).context("Failed to create index file")?;
     for (address, index) in &index_map {
-        writeln!(index_file, "0x{}:{}", hex::encode(address), index).context("Failed to write index")?;
+        writeln!(index_file, "0x{}:{}", hex::encode(address), index)
+            .context("Failed to write index")?;
     }
 
     if let Some(tree_path) = cli.tree_output {

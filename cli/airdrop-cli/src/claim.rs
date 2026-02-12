@@ -10,6 +10,29 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
+const NULLIFIER_DOMAIN_SEPARATOR: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
+
+fn get_merkle_proof(tree: &[Vec<[u8; 32]>], leaf_index: usize) -> Vec<[u8; 32]> {
+    let mut proof = Vec::new();
+    let mut current_index = leaf_index;
+
+    for level in tree.iter().skip(1) {
+        let sibling_index = if current_index % 2 == 0 {
+            current_index + 1
+        } else {
+            current_index - 1
+        };
+
+        if sibling_index < level.len() {
+            proof.push(level[sibling_index]);
+        }
+
+        current_index /= 2;
+    }
+
+    proof
+}
+
 #[derive(Parser)]
 #[command(name = "claim")]
 #[command(about = "Generate airdrop claim proof", long_about = None)]
@@ -50,20 +73,6 @@ struct ClaimOutput {
     claimer_address: String,
 }
 
-pub fn poseidon2_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
-    let hash = Keccak256::new()
-        .chain_update(left)
-        .chain_update(right)
-        .finalize();
-    hash.into()
-}
-
-pub fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
-    let mut leaf = [0u8; 32];
-    leaf[12..32].copy_from_slice(address);
-    leaf
-}
-
 pub fn bytes_to_field(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
 }
@@ -71,7 +80,7 @@ pub fn bytes_to_field(bytes: &[u8]) -> String {
 pub fn compute_nullifier(private_key_bytes: &[u8]) -> [u8; 32] {
     let hash = Keccak256::new()
         .chain_update(private_key_bytes)
-        .chain_update([0xa1, 0xb2, 0xc3, 0xd4])
+        .chain_update(NULLIFIER_DOMAIN_SEPARATOR)
         .finalize();
     hash.into()
 }
@@ -140,27 +149,6 @@ fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
     }
 
     Ok(tree)
-}
-
-pub fn get_merkle_proof(tree: &Vec<Vec<[u8; 32]>>, leaf_index: usize) -> Vec<[u8; 32]> {
-    let mut proof = Vec::new();
-    let mut current_index = leaf_index;
-
-    for level in tree.iter().skip(1) {
-        let sibling_index = if current_index % 2 == 0 {
-            current_index + 1
-        } else {
-            current_index - 1
-        };
-
-        if sibling_index < level.len() {
-            proof.push(level[sibling_index]);
-        }
-
-        current_index /= 2;
-    }
-
-    proof
 }
 
 fn private_key_to_address(signing_key: &SigningKey) -> Result<[u8; 20]> {
