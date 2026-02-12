@@ -24,6 +24,9 @@ pub fn parse_address(addr_str: &str) -> anyhow::Result<[u8; 20]> {
     let mut address = [0u8; 20];
     hex::decode_to_slice(cleaned, &mut address)
         .map_err(|e| anyhow::anyhow!("Invalid hex encoding: {}", e))?;
+    if address == [0u8; 20] {
+        anyhow::bail!("Zero address not allowed");
+    }
     Ok(address)
 }
 
@@ -66,25 +69,43 @@ pub fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
 ///
 /// # Returns
 /// Vector of sibling hashes forming the Merkle proof
-pub fn get_merkle_proof(tree: &[Vec<[u8; 32]>], leaf_index: usize) -> Vec<[u8; 32]> {
+pub fn get_merkle_proof(
+    tree: &[Vec<[u8; 32]>],
+    leaf_index: usize,
+) -> anyhow::Result<Vec<[u8; 32]>> {
+    if tree.is_empty() {
+        anyhow::bail!("Merkle tree is empty");
+    }
+    if leaf_index >= tree[0].len() {
+        anyhow::bail!(
+            "Leaf index {} is out of bounds for tree with {} leaves",
+            leaf_index,
+            tree[0].len()
+        );
+    }
+
     let mut proof = Vec::new();
     let mut current_index = leaf_index;
 
     for level in tree.iter().skip(1) {
+        if level.is_empty() {
+            break;
+        }
+
         let sibling_index = if current_index.is_multiple_of(2) {
             current_index + 1
         } else {
             current_index - 1
         };
 
-        if sibling_index < level.len() {
+        if sibling_index > 0 && sibling_index < level.len() {
             proof.push(level[sibling_index]);
         }
 
         current_index /= 2;
     }
 
-    proof
+    Ok(proof)
 }
 
 #[cfg(test)]
@@ -142,8 +163,23 @@ mod tests {
         let level2 = vec![[7u8; 32]];
         let tree = vec![level0, level1, level2];
 
-        let proof = get_merkle_proof(&tree, 0);
+        let proof = get_merkle_proof(&tree, 0).unwrap();
         assert_eq!(proof.len(), 1);
         assert_eq!(proof[0], [6u8; 32]);
+    }
+
+    #[test]
+    fn test_get_merkle_proof_empty_tree() {
+        let tree: Vec<Vec<[u8; 32]>> = vec![];
+        let proof = get_merkle_proof(&tree, 0);
+        assert!(proof.is_err());
+    }
+
+    #[test]
+    fn test_get_merkle_proof_out_of_bounds() {
+        let level0 = vec![[1u8; 32], [2u8; 32]];
+        let tree = vec![level0];
+        let proof = get_merkle_proof(&tree, 5);
+        assert!(proof.is_err());
     }
 }

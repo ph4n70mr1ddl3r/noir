@@ -26,6 +26,10 @@ fn derive_address(private_key: Field) -> Field {
     poseidon2([private_key])
 }
 
+fn validate_private_key(private_key: Field) {
+    assert(private_key != Field::from(0));
+}
+
 fn compute_nullifier(private_key: Field) -> Field {
     poseidon2([private_key, Field::from(NULLIFIER_DOMAIN_SEPARATOR)])
 }
@@ -37,6 +41,7 @@ fn main(
     private_key: Field,
     proof: MerkleProof,
 ) {
+    validate_private_key(private_key);
     let address = derive_address(private_key);
     let computed_root = compute_merkle_root(address, proof);
     assert(computed_root == merkle_root);

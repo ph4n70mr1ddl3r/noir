@@ -5,7 +5,7 @@ use serde::Serialize;
 use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 
 use airdrop_cli::{get_merkle_proof, parse_address};
@@ -59,7 +59,6 @@ struct ClaimOutput {
     recipient: String,
     nullifier: String,
     merkle_proof: Vec<String>,
-    private_key_field: String,
     leaf_index: usize,
     claimer_address: String,
 }
@@ -94,6 +93,10 @@ fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
             let index: usize = parts[1].parse().context("Invalid index format")?;
             map.insert(address, index);
         }
+    }
+
+    if map.is_empty() {
+        anyhow::bail!("Index map file is empty");
     }
 
     Ok(map)
@@ -207,15 +210,27 @@ fn main() -> Result<()> {
     let leaf_index = *index_map
         .get(&claimer_address)
         .context("Address not found in qualified list")?;
+    let tree_size = tree.first().map(|l| l.len()).unwrap_or(0);
+    if leaf_index >= tree_size {
+        anyhow::bail!(
+            "Leaf index {} is out of bounds for tree with {} leaves",
+            leaf_index,
+            tree_size
+        );
+    }
 
     println!("Generating Merkle proof...");
-    let merkle_proof = get_merkle_proof(&tree, leaf_index);
+    let merkle_proof =
+        get_merkle_proof(&tree, leaf_index).context("Failed to generate Merkle proof")?;
 
     println!("Computing nullifier...");
     let nullifier = compute_nullifier(&private_key_bytes);
 
     println!("Parsing recipient address...");
     let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;
+    if recipient == [0u8; 20] {
+        anyhow::bail!("Zero recipient address not allowed");
+    }
 
     let claim = ClaimOutput {
         merkle_root: cli.root,
@@ -225,14 +240,18 @@ fn main() -> Result<()> {
             .iter()
             .map(|h| format!("0x{}", hex::encode(h)))
             .collect(),
-        private_key_field: bytes_to_field(&private_key_bytes),
         leaf_index,
         claimer_address: format!("0x{}", hex::encode(claimer_address)),
     };
 
     println!("Writing claim JSON to {:?}...", cli.output);
-    let file = File::create(&cli.output).context("Failed to create output file")?;
-    serde_json::to_writer_pretty(&file, &claim).context("Failed to write JSON")?;
+    let json_output = serde_json::to_string_pretty(&claim).context("Failed to serialize JSON")?;
+    let temp_path = cli.output.with_extension("tmp");
+    let mut file = File::create(&temp_path).context("Failed to create temp file")?;
+    file.write_all(json_output.as_bytes())
+        .context("Failed to write to temp file")?;
+    file.flush().context("Failed to flush temp file")?;
+    std::fs::rename(&temp_path, &cli.output).context("Failed to move temp file to output")?;
 
     println!("\nClaim generated successfully!");
     println!("Claimer address: 0x{}", hex::encode(claimer_address));

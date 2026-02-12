@@ -29,6 +29,7 @@ contract Airdrop is ReentrancyGuard {
     error InsufficientBalance();
     error NotOwner();
     error TransferFailed();
+    error InvalidRecipient();
 
     address public owner;
     IERC20 public token;
@@ -41,18 +42,22 @@ contract Airdrop is ReentrancyGuard {
     mapping(bytes32 => bool) public usedNullifiers;
 
     event Claimed(address indexed recipient, bytes32 indexed nullifier);
-    event RootUpdated(bytes32 oldRoot, bytes32 newRoot);
+    event RootUpdated(bytes32 indexed oldRoot, bytes32 indexed newRoot);
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
+    event RootInitialized(bytes32 indexed root);
 
     constructor(
         address _token,
         address _verifier,
         bytes32 _merkleRoot
     ) {
+        if (_token == address(0)) revert InvalidRecipient();
+        if (_verifier == address(0)) revert InvalidRecipient();
         owner = msg.sender;
         token = IERC20(_token);
         verifier = IUltraVerifier(_verifier);
         merkleRoot = _merkleRoot;
+        emit RootInitialized(_merkleRoot);
     }
 
     modifier onlyOwner() {
@@ -66,6 +71,7 @@ contract Airdrop is ReentrancyGuard {
         address recipient
     ) external nonReentrant {
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
+        if (recipient == address(0)) revert InvalidRecipient();
 
         uint256[] memory publicInputs = new uint256[](3);
         publicInputs[0] = uint256(merkleRoot);
@@ -76,10 +82,12 @@ contract Airdrop is ReentrancyGuard {
         if (!isValid) revert InvalidProof();
 
         usedNullifiers[nullifier] = true;
-        totalClaimed += CLAIM_AMOUNT;
+        unchecked {
+            totalClaimed += CLAIM_AMOUNT;
+        }
 
-        (bool success, ) = address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
-        if (!success) revert InsufficientBalance();
+        (bool success, bytes memory data) = address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
+        if (!success) revert TransferFailed();
 
         emit Claimed(recipient, nullifier);
     }
