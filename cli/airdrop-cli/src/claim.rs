@@ -216,6 +216,7 @@ fn main() -> Result<()> {
     let mut private_key_bytes = [0u8; 32];
     private_key_bytes.copy_from_slice(&key_bytes);
     key_bytes.zeroize();
+    let _ = key_str;
 
     let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;
 
@@ -239,6 +240,10 @@ fn main() -> Result<()> {
     println!("Generating Merkle proof...");
     let merkle_proof =
         get_merkle_proof(&tree, leaf_index).context("Failed to generate Merkle proof")?;
+
+    if merkle_proof.is_empty() && !tree.is_empty() && tree[0].len() > 1 {
+        anyhow::bail!("Invalid Merkle proof: proof is empty but tree has multiple leaves");
+    }
 
     println!("Computing nullifier...");
     let nullifier = compute_nullifier(&private_key_bytes)?;

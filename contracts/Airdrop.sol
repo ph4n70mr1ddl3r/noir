@@ -30,9 +30,11 @@ contract Airdrop is ReentrancyGuard {
     error NotOwner();
     error TransferFailed();
     error InvalidRecipient();
+    error InvalidVerifier();
     error TimelockNotExpired();
     error MaxClaimsExceeded();
     error InvalidTimelock();
+    error InvalidMaxClaims();
 
     address public owner;
     IERC20 public token;
@@ -62,9 +64,9 @@ contract Airdrop is ReentrancyGuard {
 
     constructor(address _token, address _verifier, bytes32 _merkleRoot, uint256 _maxClaims) {
         if (_token == address(0)) revert InvalidRecipient();
-        if (_verifier == address(0)) revert InvalidRecipient();
+        if (_verifier == address(0)) revert InvalidVerifier();
         if (_merkleRoot == bytes32(0)) revert InvalidRoot();
-        if (_maxClaims == 0) revert InvalidTimelock();
+        if (_maxClaims == 0) revert InvalidMaxClaims();
         owner = msg.sender;
         token = IERC20(_token);
         verifier = IUltraVerifier(_verifier);
@@ -135,6 +137,18 @@ contract Airdrop is ReentrancyGuard {
     }
 
     function withdrawTokens(uint256 amount) external onlyOwner {
+        bytes32 operationHash = keccak256(abi.encodePacked("withdrawTokens", amount));
+        _executeTimelockedOperation(operationHash);
+        _withdrawTokensInternal(amount);
+    }
+
+    function scheduleWithdrawTokens(uint256 amount) external onlyOwner {
+        bytes32 operationHash = keccak256(abi.encodePacked("withdrawTokens", amount));
+        timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
+        emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
+    }
+
+    function _withdrawTokensInternal(uint256 amount) internal {
         (bool success, bytes memory data) =
             address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, owner, amount));
         if (!success) revert TransferFailed();

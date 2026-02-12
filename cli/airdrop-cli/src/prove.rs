@@ -53,8 +53,6 @@ fn generate_noir_proof(claim: &ClaimInput, circuit_path: &Path) -> Result<ProofO
         anyhow::bail!("Circuit directory does not exist: {:?}", circuit_path);
     }
 
-    let _prover_path = circuit_path.join("target").join("airdrop.json");
-
     let public_inputs = vec![
         claim.merkle_root.clone(),
         claim.recipient.clone(),

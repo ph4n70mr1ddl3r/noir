@@ -55,12 +55,7 @@ contract AirdropTest is Test {
 
         verifier = new MockVerifier();
 
-        airdrop = new Airdrop(
-            address(token),
-            address(verifier),
-            merkleRoot,
-            MAX_CLAIMS
-        );
+        airdrop = new Airdrop(address(token), address(verifier), merkleRoot, MAX_CLAIMS);
 
         token.transfer(address(airdrop), MAX_CLAIMS * CLAIM_AMOUNT);
         vm.stopPrank();
@@ -210,6 +205,15 @@ contract AirdropTest is Test {
         token.transfer(address(airdrop), withdrawAmount);
 
         vm.startPrank(owner);
+        airdrop.scheduleWithdrawTokens(withdrawAmount);
+
+        // Try to execute before timelock expires
+        vm.warp(block.timestamp + 1 days);
+        vm.expectRevert(Airdrop.TimelockNotExpired.selector);
+        airdrop.withdrawTokens(withdrawAmount);
+
+        // Execute after timelock
+        vm.warp(block.timestamp + 1 days + 1);
         airdrop.withdrawTokens(withdrawAmount);
         vm.stopPrank();
 
@@ -234,16 +238,16 @@ contract AirdropTest is Test {
 
     function testZeroAddressInConstructor() public {
         vm.startPrank(owner);
-        vm.expectRevert();
+        vm.expectRevert(Airdrop.InvalidRecipient.selector);
         new Airdrop(address(0), address(verifier), merkleRoot, MAX_CLAIMS);
 
-        vm.expectRevert();
+        vm.expectRevert(Airdrop.InvalidVerifier.selector);
         new Airdrop(address(token), address(0), merkleRoot, MAX_CLAIMS);
 
-        vm.expectRevert();
+        vm.expectRevert(Airdrop.InvalidRoot.selector);
         new Airdrop(address(token), address(verifier), bytes32(0), MAX_CLAIMS);
 
-        vm.expectRevert();
+        vm.expectRevert(Airdrop.InvalidMaxClaims.selector);
         new Airdrop(address(token), address(verifier), merkleRoot, 0);
         vm.stopPrank();
     }
