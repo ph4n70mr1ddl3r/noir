@@ -8,7 +8,8 @@ contract DeployAirdrop is Script {
     function run(
         address tokenAddress,
         address verifierAddress,
-        bytes32 merkleRoot
+        bytes32 merkleRoot,
+        uint256 maxClaims
     ) external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
@@ -17,7 +18,8 @@ contract DeployAirdrop is Script {
         Airdrop airdrop = new Airdrop(
             tokenAddress,
             verifierAddress,
-            merkleRoot
+            merkleRoot,
+            maxClaims
         );
 
         vm.stopBroadcast();

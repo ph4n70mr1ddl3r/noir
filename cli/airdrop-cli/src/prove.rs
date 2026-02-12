@@ -6,14 +6,6 @@ use std::path::{Path, PathBuf};
 
 use airdrop_cli::write_file_atomic;
 
-// TODO: Replace mock proof generation with actual Noir proof generation
-// using the Noir SDK or calling nargo programmatically
-//
-// WARNING: This function currently returns mock/hardcoded values and is NOT suitable for production use.
-// The actual proof must be generated using the Noir circuit. For proper integration:
-// 1. Compile the Noir circuit using nargo
-// 2. Generate the proof with the claim inputs
-// 3. Return the actual proof bytes and verified public inputs
 #[derive(Parser)]
 #[command(name = "prove")]
 #[command(about = "Generate Noir proof from claim JSON", long_about = None)]
@@ -32,12 +24,12 @@ struct Cli {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct ClaimInput {
     merkle_root: String,
     recipient: String,
     nullifier: String,
     merkle_proof: Vec<String>,
+    #[allow(dead_code)]
     private_key_field: String,
 }
 
@@ -45,10 +37,13 @@ struct ClaimInput {
 struct ProofOutput {
     proof: Vec<String>,
     public_inputs: Vec<String>,
+    #[serde(rename = "is_mock")]
+    is_mock: bool,
+    #[serde(rename = "timestamp")]
+    timestamp: u64,
 }
 
-// WARNING: This is a MOCK implementation that returns hardcoded values.
-// Do NOT use in production. Replace with actual Noir proof generation.
+#[cfg(feature = "mock-proofs")]
 fn generate_noir_proof(claim: &ClaimInput, circuit_path: &Path) -> Result<ProofOutput> {
     if !circuit_path.exists() {
         anyhow::bail!("Circuit directory does not exist: {:?}", circuit_path);
@@ -67,24 +62,37 @@ fn generate_noir_proof(claim: &ClaimInput, circuit_path: &Path) -> Result<ProofO
     Ok(ProofOutput {
         proof,
         public_inputs,
+        is_mock: true,
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs(),
     })
+}
+
+#[cfg(not(feature = "mock-proofs"))]
+fn generate_noir_proof(_claim: &ClaimInput, _circuit_path: &Path) -> Result<ProofOutput> {
+    anyhow::bail!(
+        "Real proof generation not yet implemented. Please use the 'mock-proofs' feature for development only."
+    );
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    #[cfg(feature = "mock-proofs")]
+    {
+        eprintln!();
+        eprintln!("WARNING: Mock proofs feature is enabled for development only!");
+        eprintln!(
+            "The generated proof is NOT cryptographically valid and should NOT be used in production."
+        );
+        eprintln!();
+    }
+
     println!("Reading claim from {:?}...", cli.input);
     let claim_content = fs::read_to_string(&cli.input).context("Failed to read claim file")?;
     let claim: ClaimInput =
         serde_json::from_str(&claim_content).context("Failed to parse claim JSON")?;
-
-    eprintln!();
-    eprintln!("WARNING: This is a MOCK proof implementation for development only!");
-    eprintln!(
-        "The generated proof is NOT cryptographically valid and should NOT be used in production."
-    );
-    eprintln!("Replace with actual Noir proof generation before deployment.");
-    eprintln!();
 
     println!("Generating Noir proof...");
     let proof_output = generate_noir_proof(&claim, &cli.circuit)?;

@@ -47,6 +47,41 @@ pub fn keccak256_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
     hash.into()
 }
 
+/// Converts byte data to hex string with 0x prefix.
+///
+/// # Arguments
+/// * `data` - Byte data to encode
+///
+/// # Returns
+/// Hex string with "0x" prefix
+pub fn hex_encode<T: AsRef<[u8]>>(data: T) -> String {
+    format!("0x{}", hex::encode(data.as_ref()))
+}
+
+/// Validates a Merkle root hex string.
+///
+/// # Arguments
+/// * `root` - Merkle root string, with or without "0x" prefix
+///
+/// # Returns
+/// 32-byte array representing the Merkle root
+///
+/// # Errors
+/// Returns an error if the root is not 64 hex characters or contains invalid hex
+pub fn validate_merkle_root(root: &str) -> anyhow::Result<[u8; 32]> {
+    let cleaned = root.trim().strip_prefix("0x").unwrap_or(root.trim());
+    if cleaned.len() != 64 {
+        anyhow::bail!(
+            "Invalid merkle root length: expected 64 hex chars, got {}",
+            cleaned.len()
+        );
+    }
+    let mut bytes = [0u8; 32];
+    hex::decode_to_slice(cleaned, &mut bytes)
+        .map_err(|e| anyhow::anyhow!("Invalid merkle root hex encoding: {}", e))?;
+    Ok(bytes)
+}
+
 /// Converts a 20-byte Ethereum address to a 32-byte Merkle leaf.
 ///
 /// Pads the address with zeros on the left (12 bytes of zeros + 20-byte address).
@@ -88,9 +123,9 @@ pub fn get_merkle_proof(
     let mut proof = Vec::new();
     let mut current_index = leaf_index;
 
-    for (level_num, level) in tree.iter().skip(1).enumerate() {
+    for (depth, level) in tree.iter().enumerate().skip(1) {
         if level.is_empty() {
-            anyhow::bail!("Encountered empty level {} in Merkle tree", level_num + 1);
+            anyhow::bail!("Encountered empty level {} in Merkle tree", depth);
         }
 
         let sibling_index = if current_index.is_multiple_of(2) {
@@ -103,7 +138,7 @@ pub fn get_merkle_proof(
             anyhow::bail!(
                 "Sibling index {} is out of bounds for level {} with {} nodes",
                 sibling_index,
-                level_num + 1,
+                depth,
                 level.len()
             );
         }
@@ -133,12 +168,20 @@ pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Resu
     file.write_all(content.as_bytes())?;
     file.flush()?;
 
-    let result = std::fs::rename(&temp_path, path);
-
-    if result.is_err() {
-        let _ = std::fs::remove_file(&temp_path);
-        return result.map_err(|e| anyhow::anyhow!("Failed to rename temp file: {}", e));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = file.metadata()?.permissions();
+        perms.set_mode(0o600);
+        file.set_permissions(perms)?;
     }
+
+    let cleanup = scopeguard::guard((), |_| {
+        let _ = std::fs::remove_file(&temp_path);
+    });
+
+    std::fs::rename(&temp_path, path)?;
+    scopeguard::ScopeGuard::into_inner(cleanup);
 
     Ok(())
 }
@@ -215,5 +258,33 @@ mod tests {
         let tree = vec![level0];
         let proof = get_merkle_proof(&tree, 5);
         assert!(proof.is_err());
+    }
+
+    #[test]
+    fn test_hex_encode() {
+        let data: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
+        let result = hex_encode(data);
+        assert_eq!(result, "0xdeadbeef");
+    }
+
+    #[test]
+    fn test_validate_merkle_root_valid() {
+        let root = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let result = validate_merkle_root(root).unwrap();
+        assert_eq!(result.len(), 32);
+    }
+
+    #[test]
+    fn test_validate_merkle_root_invalid_length() {
+        let root = "0x1234";
+        let result = validate_merkle_root(root);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_merkle_root_invalid_hex() {
+        let root = "0xghijklmnopqrstuvwxyz1234567890abcdef1234567890abcdef1234567890";
+        let result = validate_merkle_root(root);
+        assert!(result.is_err());
     }
 }

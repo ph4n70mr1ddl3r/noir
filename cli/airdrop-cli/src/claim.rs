@@ -7,10 +7,11 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
+use zeroize::Zeroize;
 
-use airdrop_cli::{get_merkle_proof, parse_address, write_file_atomic};
-
-const NULLIFIER_DOMAIN_SEPARATOR: [u8; 4] = 0xa1b2c3d4u32.to_be_bytes();
+use airdrop_cli::{
+    get_merkle_proof, hex_encode, parse_address, validate_merkle_root, write_file_atomic,
+};
 
 /// Converts a byte array to a hex string field representation.
 ///
@@ -65,19 +66,22 @@ struct ClaimOutput {
 
 /// Computes a nullifier from a private key to prevent double-claiming.
 ///
-/// Uses Keccak256 with a domain separator to ensure uniqueness.
+/// Uses Keccak256 with a domain separator for cryptographic strength.
+/// Consistent with Noir circuit implementation.
 ///
 /// # Arguments
 /// * `private_key_bytes` - 32-byte private key
 ///
 /// # Returns
 /// 32-byte nullifier hash
-pub fn compute_nullifier(private_key_bytes: &[u8]) -> [u8; 32] {
-    let hash = Keccak256::new()
-        .chain_update(private_key_bytes)
-        .chain_update(NULLIFIER_DOMAIN_SEPARATOR)
-        .finalize();
-    hash.into()
+pub fn compute_nullifier(private_key_bytes: &[u8]) -> Result<[u8; 32]> {
+    // Domain separator from circuit: 0xa1b2c3d4
+    let domain_separator: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
+    let mut hasher = Keccak256::new();
+    hasher.update(private_key_bytes);
+    hasher.update(domain_separator);
+    let result = hasher.finalize();
+    Ok(result.into())
 }
 
 fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
@@ -190,6 +194,9 @@ fn private_key_to_address(signing_key: &SigningKey) -> Result<[u8; 20]> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    println!("Validating Merkle root...");
+    let _ = validate_merkle_root(&cli.root).context("Invalid Merkle root")?;
+
     println!("Loading Merkle tree...");
     let tree = load_merkle_tree(&cli.tree).context("Failed to load Merkle tree")?;
 
@@ -210,7 +217,7 @@ fn main() -> Result<()> {
     if key_str.is_empty() {
         anyhow::bail!("Private key is empty");
     }
-    let key_bytes = hex::decode(key_str).context("Invalid private key format")?;
+    let mut key_bytes = hex::decode(key_str).context("Invalid private key format")?;
     if key_bytes.len() != 32 {
         anyhow::bail!(
             "Invalid private key length: expected 32 bytes, got {}",
@@ -219,6 +226,7 @@ fn main() -> Result<()> {
     }
     let mut private_key_bytes = [0u8; 32];
     private_key_bytes.copy_from_slice(&key_bytes);
+    key_bytes.zeroize();
 
     let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;
 
@@ -244,7 +252,9 @@ fn main() -> Result<()> {
         get_merkle_proof(&tree, leaf_index).context("Failed to generate Merkle proof")?;
 
     println!("Computing nullifier...");
-    let nullifier = compute_nullifier(&private_key_bytes);
+    let nullifier = compute_nullifier(&private_key_bytes)?;
+
+    private_key_bytes.zeroize();
 
     println!("Parsing recipient address...");
     let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;
@@ -254,14 +264,11 @@ fn main() -> Result<()> {
 
     let claim = ClaimOutput {
         merkle_root: cli.root,
-        recipient: format!("0x{}", hex::encode(recipient)),
-        nullifier: format!("0x{}", hex::encode(nullifier)),
-        merkle_proof: merkle_proof
-            .iter()
-            .map(|h| format!("0x{}", hex::encode(h)))
-            .collect(),
+        recipient: hex_encode(recipient),
+        nullifier: hex_encode(nullifier),
+        merkle_proof: merkle_proof.iter().copied().map(hex_encode).collect(),
         leaf_index,
-        claimer_address: format!("0x{}", hex::encode(claimer_address)),
+        claimer_address: hex_encode(claimer_address),
     };
 
     println!("Writing claim JSON to {:?}...", cli.output);
@@ -269,10 +276,56 @@ fn main() -> Result<()> {
     write_file_atomic(&cli.output, &json_output).context("Failed to write claim file")?;
 
     println!("\nClaim generated successfully!");
-    println!("Claimer address: 0x{}", hex::encode(claimer_address));
-    println!("Recipient: 0x{}", hex::encode(recipient));
-    println!("Nullifier: 0x{}", hex::encode(nullifier));
+    println!("Claimer address: {}", hex_encode(claimer_address));
+    println!("Recipient: {}", hex_encode(recipient));
+    println!("Nullifier: {}", hex_encode(nullifier));
     println!("Proof length: {} nodes", merkle_proof.len());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute_nullifier() {
+        let key = [1u8; 32];
+        let nullifier1 = compute_nullifier(&key).unwrap();
+        let nullifier2 = compute_nullifier(&key).unwrap();
+        assert_eq!(nullifier1, nullifier2);
+
+        let key2 = [2u8; 32];
+        let nullifier3 = compute_nullifier(&key2).unwrap();
+        assert_ne!(nullifier1, nullifier3);
+    }
+
+    #[test]
+    fn test_private_key_to_address() {
+        let key_bytes = [1u8; 32];
+        let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
+        let address = private_key_to_address(&signing_key).unwrap();
+        assert_eq!(address.len(), 20);
+        assert_ne!(address, [0u8; 20]);
+    }
+
+    #[test]
+    fn test_private_key_to_address_deterministic() {
+        let key_bytes = [42u8; 32];
+        let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
+        let address1 = private_key_to_address(&signing_key).unwrap();
+
+        let signing_key2 = SigningKey::from_slice(&key_bytes).unwrap();
+        let address2 = private_key_to_address(&signing_key2).unwrap();
+
+        assert_eq!(address1, address2);
+    }
+
+    #[test]
+    fn test_bytes_to_field() {
+        let bytes: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
+        let result = bytes_to_field(&bytes);
+        assert!(result.starts_with("0x"));
+        assert_eq!(result.len(), 10);
+    }
 }

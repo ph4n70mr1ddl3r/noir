@@ -1,9 +1,9 @@
-use airdrop_cli::{address_to_leaf, keccak256_hash};
+use airdrop_cli::{address_to_leaf, hex_encode, keccak256_hash, write_file_atomic};
 use anyhow::{Context, Result};
 use clap::Parser;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -44,21 +44,24 @@ pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]
     }
 
     let mut tree: Vec<Vec<[u8; 32]>> = vec![leaves];
-    let mut level = &tree[0];
+    let mut current_level = tree.last().unwrap();
 
-    while level.len() > 1 {
-        let mut next_level = Vec::new();
+    while current_level.len() > 1 {
+        let next_level_capacity = current_level.len().div_ceil(2);
+        let mut next_level = Vec::with_capacity(next_level_capacity);
 
-        for chunk in level.chunks(2) {
-            let left = chunk[0];
-            let right = if chunk.len() == 2 { chunk[1] } else { left };
+        for i in (0..current_level.len()).step_by(2) {
+            let left = current_level[i];
+            let right = if i + 1 < current_level.len() {
+                current_level[i + 1]
+            } else {
+                left
+            };
             next_level.push(keccak256_hash(left, right));
         }
 
         tree.push(next_level);
-        level = tree
-            .last()
-            .expect("tree should have at least one level after push");
+        current_level = tree.last().unwrap();
     }
 
     let root = tree.last().map(|level| level[0]).unwrap_or([0u8; 32]);
@@ -107,29 +110,87 @@ fn main() -> Result<()> {
 
     let (tree, root) = build_merkle_tree(leaves);
 
-    println!("Merkle root: 0x{}", hex::encode(root));
+    println!("Merkle root: {}", hex_encode(root));
 
-    let mut root_file = File::create(&cli.root_output).context("Failed to create root file")?;
-    writeln!(root_file, "0x{}", hex::encode(root)).context("Failed to write root")?;
+    let root_content = hex_encode(root);
+    write_file_atomic(&cli.root_output, &root_content).context("Failed to write root file")?;
 
-    let mut index_file = File::create(&cli.index_output).context("Failed to create index file")?;
+    let mut index_lines: Vec<String> = Vec::new();
     for (address, index) in &index_map {
-        writeln!(index_file, "0x{}:{}", hex::encode(address), index)
-            .context("Failed to write index")?;
+        index_lines.push(format!("{}:{}", hex_encode(address), index));
     }
+    let index_content = index_lines.join("\n");
+    write_file_atomic(&cli.index_output, &index_content).context("Failed to write index file")?;
 
     if let Some(tree_path) = cli.tree_output {
         println!("Writing Merkle tree to {:?}...", tree_path);
-        let mut tree_file = File::create(&tree_path).context("Failed to create tree file")?;
-
+        let mut tree_lines: Vec<String> = Vec::new();
         for (level_num, level) in tree.iter().enumerate() {
             for (i, hash) in level.iter().enumerate() {
-                writeln!(tree_file, "{}:{}:0x{}", level_num, i, hex::encode(hash))
-                    .context("Failed to write tree")?;
+                tree_lines.push(format!("{}:{}:{}", level_num, i, hex_encode(hash)));
             }
         }
+        let tree_content = tree_lines.join("\n");
+        write_file_atomic(&tree_path, &tree_content).context("Failed to write tree file")?;
     }
 
     println!("Done!");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_merkle_tree_empty() {
+        let leaves: Vec<[u8; 32]> = vec![];
+        let (tree, root) = build_merkle_tree(leaves);
+        assert!(tree.is_empty());
+        assert_eq!(root, [0u8; 32]);
+    }
+
+    #[test]
+    fn test_build_merkle_tree_single_leaf() {
+        let leaves = vec![[1u8; 32]];
+        let (tree, root) = build_merkle_tree(leaves);
+        assert_eq!(tree.len(), 1);
+        assert_eq!(tree[0].len(), 1);
+        assert_eq!(root, tree[0][0]);
+    }
+
+    #[test]
+    fn test_build_merkle_tree_two_leaves() {
+        let leaves = vec![[1u8; 32], [2u8; 32]];
+        let (tree, root) = build_merkle_tree(leaves);
+        assert_eq!(tree.len(), 2);
+        assert_eq!(tree[0].len(), 2);
+        assert_eq!(tree[1].len(), 1);
+        let expected = keccak256_hash([1u8; 32], [2u8; 32]);
+        assert_eq!(root, expected);
+    }
+
+    #[test]
+    fn test_build_merkle_tree_odd_leaves() {
+        let leaves = vec![[1u8; 32], [2u8; 32], [3u8; 32]];
+        let (tree, root) = build_merkle_tree(leaves);
+        assert_eq!(tree.len(), 3);
+        assert_eq!(tree[0].len(), 3);
+        assert_eq!(tree[1].len(), 2);
+        assert_eq!(tree[2].len(), 1);
+        let hash1 = keccak256_hash([1u8; 32], [2u8; 32]);
+        let hash2 = keccak256_hash([3u8; 32], [3u8; 32]);
+        let expected = keccak256_hash(hash1, hash2);
+        assert_eq!(root, expected);
+    }
+
+    #[test]
+    fn test_build_merkle_tree_power_of_two() {
+        let leaves: Vec<[u8; 32]> = (0..4).map(|i| [i as u8; 32]).collect();
+        let (tree, root) = build_merkle_tree(leaves);
+        assert_eq!(tree.len(), 3);
+        assert_eq!(tree[0].len(), 4);
+        assert_eq!(tree[1].len(), 2);
+        assert_eq!(tree[2].len(), 1);
+    }
 }
