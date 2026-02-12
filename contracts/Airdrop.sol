@@ -11,13 +11,23 @@ interface IERC20 {
 }
 
 contract ReentrancyGuard {
+    // Using uint256 values 1 and 2 instead of bool true/false for lock state
+    // This unconventional pattern still works correctly as 1 = unlocked, 2 = locked
     uint256 private locked = 1;
     error ReentrancyGuardReentrantCall();
 
     modifier nonReentrant() {
+        _nonReentrantBefore();
+        _;
+        _nonReentrantAfter();
+    }
+
+    function _nonReentrantBefore() internal {
         if (locked != 1) revert ReentrancyGuardReentrantCall();
         locked = 2;
-        _;
+    }
+
+    function _nonReentrantAfter() internal {
         locked = 1;
     }
 }
@@ -77,8 +87,12 @@ contract Airdrop is ReentrancyGuard {
     }
 
     modifier onlyOwner() {
-        if (msg.sender != owner) revert NotOwner();
+        _onlyOwner();
         _;
+    }
+
+    function _onlyOwner() internal view {
+        if (msg.sender != owner) revert NotOwner();
     }
 
     function claim(uint256[] calldata proof, bytes32 nullifier, address recipient) external nonReentrant {

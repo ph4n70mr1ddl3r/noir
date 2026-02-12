@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
-import "../contracts/Airdrop.sol";
+import {Test} from "forge-std/Test.sol";
+import {Airdrop, IUltraVerifier, IERC20} from "../contracts/Airdrop.sol";
 
 contract MockVerifier is IUltraVerifier {
     bool shouldVerify = true;
@@ -57,7 +57,8 @@ contract AirdropTest is Test {
 
         airdrop = new Airdrop(address(token), address(verifier), merkleRoot, MAX_CLAIMS);
 
-        token.transfer(address(airdrop), MAX_CLAIMS * CLAIM_AMOUNT);
+        bool success = token.transfer(address(airdrop), MAX_CLAIMS * CLAIM_AMOUNT);
+        assertTrue(success, "Transfer to airdrop failed");
         vm.stopPrank();
     }
 
@@ -127,6 +128,7 @@ contract AirdropTest is Test {
         // Drain the contract to max claims
         for (uint256 i = 0; i < MAX_CLAIMS; i++) {
             bytes32 claimNullifier = bytes32(i);
+            // casting to 'uint160' is safe because i + 100 is guaranteed to be within uint160 range for MAX_CLAIMS = 1000
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
             airdrop.claim(new uint256[](0), claimNullifier, recipient);
@@ -146,6 +148,7 @@ contract AirdropTest is Test {
         // Claim MAX_CLAIMS - 1 times (999 claims) - should all succeed
         for (uint256 i = 0; i < MAX_CLAIMS - 1; i++) {
             bytes32 claimNullifier = bytes32(i);
+            // casting to 'uint160' is safe because i + 100 is guaranteed to be within uint160 range for MAX_CLAIMS = 1000
             address claimRecipient = address(uint160(i + 100));
             vm.prank(claimRecipient);
             airdrop.claim(new uint256[](0), claimNullifier, claimRecipient);
@@ -153,6 +156,7 @@ contract AirdropTest is Test {
 
         // This should succeed - the MAX_CLAIMS-th claim (1000th claim)
         bytes32 nullifier = bytes32(MAX_CLAIMS - 1);
+        // casting to 'uint160' is safe because MAX_CLAIMS - 1 + 100 = 1099 is within uint160 range
         address boundaryRecipient = address(uint160(MAX_CLAIMS - 1 + 100));
         vm.prank(boundaryRecipient);
         airdrop.claim(new uint256[](0), nullifier, boundaryRecipient);
@@ -226,7 +230,8 @@ contract AirdropTest is Test {
         // First fund the contract with extra tokens (owner already has balance from initial mint)
         uint256 ownerBalanceBefore = token.balanceOf(owner);
         vm.prank(owner);
-        token.transfer(address(airdrop), withdrawAmount);
+        bool success = token.transfer(address(airdrop), withdrawAmount);
+        assertTrue(success, "Transfer to airdrop failed");
 
         vm.startPrank(owner);
         airdrop.scheduleWithdrawTokens(withdrawAmount);
