@@ -52,7 +52,9 @@ pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]
         }
 
         tree.push(next_level);
-        level = tree.last().unwrap();
+        level = tree
+            .last()
+            .expect("tree should have at least one level after push");
     }
 
     let root = tree.last().map(|level| level[0]).unwrap_or([0u8; 32]);

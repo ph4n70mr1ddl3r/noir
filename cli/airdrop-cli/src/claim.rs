@@ -207,8 +207,9 @@ fn main() -> Result<()> {
     let claimer_address = private_key_to_address(&signing_key)?;
 
     println!("Looking up address in index map...");
-    let leaf_index = *index_map
+    let leaf_index = index_map
         .get(&claimer_address)
+        .copied()
         .context("Address not found in qualified list")?;
     let tree_size = tree.first().map(|l| l.len()).unwrap_or(0);
     if leaf_index >= tree_size {
