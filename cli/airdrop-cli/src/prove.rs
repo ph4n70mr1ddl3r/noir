@@ -2,9 +2,9 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::fs::File;
-use std::io::Write;
 use std::path::{Path, PathBuf};
+
+use airdrop_cli::write_file_atomic;
 
 // TODO: Replace mock proof generation with actual Noir proof generation
 // using the Noir SDK or calling nargo programmatically
@@ -92,12 +92,7 @@ fn main() -> Result<()> {
     println!("Writing proof to {:?}...", cli.output);
     let json_output =
         serde_json::to_string_pretty(&proof_output).context("Failed to serialize proof")?;
-    let temp_path = cli.output.with_extension("tmp");
-    let mut file = File::create(&temp_path).context("Failed to create temp file")?;
-    file.write_all(json_output.as_bytes())
-        .context("Failed to write to temp file")?;
-    file.flush().context("Failed to flush temp file")?;
-    std::fs::rename(&temp_path, &cli.output).context("Failed to move temp file to output")?;
+    write_file_atomic(&cli.output, &json_output).context("Failed to write proof file")?;
 
     println!("\nProof generated successfully!");
     println!("Public inputs: {:?}", proof_output.public_inputs);

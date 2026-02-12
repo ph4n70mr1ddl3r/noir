@@ -42,10 +42,13 @@ fn main(
     proof: MerkleProof,
 ) {
     validate_private_key(private_key);
+    
     let address = derive_address(private_key);
     let computed_root = compute_merkle_root(address, proof);
     assert(computed_root == merkle_root);
 
     let computed_nullifier = compute_nullifier(private_key);
     assert(computed_nullifier == public_nullifier);
+    
+    assert(recipient != Field::from(0));
 }

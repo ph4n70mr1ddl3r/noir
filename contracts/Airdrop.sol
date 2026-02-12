@@ -36,7 +36,7 @@ contract Airdrop is ReentrancyGuard {
     IUltraVerifier public verifier;
     bytes32 public merkleRoot;
 
-    uint256 public constant CLAIM_AMOUNT = 100 * 10**18; // 100 tokens per claim
+    uint256 public constant CLAIM_AMOUNT = 100 * 10 ** 18; // 100 tokens per claim
     uint256 public totalClaimed;
 
     mapping(bytes32 => bool) public usedNullifiers;
@@ -46,13 +46,10 @@ contract Airdrop is ReentrancyGuard {
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event RootInitialized(bytes32 indexed root);
 
-    constructor(
-        address _token,
-        address _verifier,
-        bytes32 _merkleRoot
-    ) {
+    constructor(address _token, address _verifier, bytes32 _merkleRoot) {
         if (_token == address(0)) revert InvalidRecipient();
         if (_verifier == address(0)) revert InvalidRecipient();
+        if (_merkleRoot == bytes32(0)) revert InvalidRoot();
         owner = msg.sender;
         token = IERC20(_token);
         verifier = IUltraVerifier(_verifier);
@@ -65,11 +62,7 @@ contract Airdrop is ReentrancyGuard {
         _;
     }
 
-    function claim(
-        uint256[] calldata proof,
-        bytes32 nullifier,
-        address recipient
-    ) external nonReentrant {
+    function claim(uint256[] calldata proof, bytes32 nullifier, address recipient) external nonReentrant {
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
         if (recipient == address(0)) revert InvalidRecipient();
 
@@ -86,27 +79,33 @@ contract Airdrop is ReentrancyGuard {
             totalClaimed += CLAIM_AMOUNT;
         }
 
-        (bool success, bytes memory data) = address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
+        (bool success, bytes memory data) =
+            address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
         if (!success) revert TransferFailed();
+        if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
 
         emit Claimed(recipient, nullifier);
     }
 
     function updateRoot(bytes32 newRoot) external onlyOwner {
+        if (newRoot == bytes32(0)) revert InvalidRoot();
         bytes32 oldRoot = merkleRoot;
         merkleRoot = newRoot;
         emit RootUpdated(oldRoot, newRoot);
     }
 
     function updateVerifier(address newVerifier) external onlyOwner {
+        if (newVerifier == address(0)) revert InvalidRecipient();
         address oldVerifier = address(verifier);
         verifier = IUltraVerifier(newVerifier);
         emit VerifierUpdated(oldVerifier, newVerifier);
     }
 
     function withdrawTokens(uint256 amount) external onlyOwner {
-        (bool success, ) = address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, owner, amount));
+        (bool success, bytes memory data) =
+            address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, owner, amount));
         if (!success) revert TransferFailed();
+        if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
     }
 
     function isNullifierUsed(bytes32 nullifier) external view returns (bool) {

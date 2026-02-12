@@ -1,4 +1,5 @@
 use sha3::{Digest, Keccak256};
+use std::path::Path;
 
 /// Parses an Ethereum address from a hex string.
 ///
@@ -87,9 +88,9 @@ pub fn get_merkle_proof(
     let mut proof = Vec::new();
     let mut current_index = leaf_index;
 
-    for level in tree.iter().skip(1) {
+    for (level_num, level) in tree.iter().skip(1).enumerate() {
         if level.is_empty() {
-            anyhow::bail!("Encountered empty level in Merkle tree");
+            anyhow::bail!("Encountered empty level {} in Merkle tree", level_num + 1);
         }
 
         let sibling_index = if current_index.is_multiple_of(2) {
@@ -98,14 +99,43 @@ pub fn get_merkle_proof(
             current_index - 1
         };
 
-        if sibling_index < level.len() {
-            proof.push(level[sibling_index]);
+        if sibling_index >= level.len() {
+            anyhow::bail!(
+                "Sibling index {} is out of bounds for level {} with {} nodes",
+                sibling_index,
+                level_num + 1,
+                level.len()
+            );
         }
 
+        proof.push(level[sibling_index]);
         current_index /= 2;
     }
 
     Ok(proof)
+}
+
+/// Atomically writes content to a file using a temp file and rename.
+///
+/// # Arguments
+/// * `path` - Target file path
+/// * `content` - Content to write
+///
+/// # Errors
+/// Returns an error if file operations fail
+pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Result<()> {
+    use std::io::Write;
+
+    let path = path.as_ref();
+    let temp_path = path.with_extension("tmp");
+
+    let mut file = std::fs::File::create(&temp_path)?;
+    file.write_all(content.as_bytes())?;
+    file.flush()?;
+
+    std::fs::rename(&temp_path, path)?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -160,8 +190,7 @@ mod tests {
     fn test_get_merkle_proof() {
         let level0 = vec![[1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32]];
         let level1 = vec![[5u8; 32], [6u8; 32]];
-        let level2 = vec![[7u8; 32]];
-        let tree = vec![level0, level1, level2];
+        let tree = vec![level0, level1];
 
         let proof = get_merkle_proof(&tree, 0).unwrap();
         assert_eq!(proof.len(), 1);

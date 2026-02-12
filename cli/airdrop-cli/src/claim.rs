@@ -5,10 +5,10 @@ use serde::Serialize;
 use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
-use airdrop_cli::{get_merkle_proof, parse_address};
+use airdrop_cli::{get_merkle_proof, parse_address, write_file_atomic};
 
 const NULLIFIER_DOMAIN_SEPARATOR: [u8; 4] = 0xa1b2c3d4u32.to_be_bytes();
 
@@ -256,12 +256,7 @@ fn main() -> Result<()> {
 
     println!("Writing claim JSON to {:?}...", cli.output);
     let json_output = serde_json::to_string_pretty(&claim).context("Failed to serialize JSON")?;
-    let temp_path = cli.output.with_extension("tmp");
-    let mut file = File::create(&temp_path).context("Failed to create temp file")?;
-    file.write_all(json_output.as_bytes())
-        .context("Failed to write to temp file")?;
-    file.flush().context("Failed to flush temp file")?;
-    std::fs::rename(&temp_path, &cli.output).context("Failed to move temp file to output")?;
+    write_file_atomic(&cli.output, &json_output).context("Failed to write claim file")?;
 
     println!("\nClaim generated successfully!");
     println!("Claimer address: 0x{}", hex::encode(claimer_address));
