@@ -198,7 +198,9 @@ fn main() -> Result<()> {
         std::io::stdin()
             .read_line(&mut buffer)
             .context("Failed to read private key from stdin")?;
-        buffer.trim().to_string()
+        let trimmed = buffer.trim().to_string();
+        buffer.zeroize();
+        trimmed
     } else {
         cli.private_key.clone()
     };
@@ -216,7 +218,6 @@ fn main() -> Result<()> {
     let mut private_key_bytes = [0u8; 32];
     private_key_bytes.copy_from_slice(&key_bytes);
     key_bytes.zeroize();
-    let _ = key_str;
 
     let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;
 

@@ -120,7 +120,7 @@ contract Airdrop is ReentrancyGuard {
     }
 
     function updateVerifier(address newVerifier) external onlyOwner {
-        if (newVerifier == address(0)) revert InvalidRecipient();
+        if (newVerifier == address(0)) revert InvalidVerifier();
         bytes32 operationHash = keccak256(abi.encodePacked("updateVerifier", newVerifier));
         _executeTimelockedOperation(operationHash);
         address oldVerifier = address(verifier);
@@ -129,7 +129,7 @@ contract Airdrop is ReentrancyGuard {
     }
 
     function setMaxClaims(uint256 _maxClaims) external onlyOwner {
-        if (_maxClaims == 0) revert InvalidTimelock();
+        if (_maxClaims == 0) revert InvalidMaxClaims();
         bytes32 operationHash = keccak256(abi.encodePacked("setMaxClaims", _maxClaims));
         _executeTimelockedOperation(operationHash);
         maxClaims = _maxClaims;

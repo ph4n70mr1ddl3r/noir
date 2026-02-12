@@ -132,9 +132,33 @@ contract AirdropTest is Test {
             airdrop.claim(new uint256[](0), claimNullifier, recipient);
         }
 
-        // Try to claim again
+        // Try to claim again - should fail at max claims boundary
         bytes32 finalNullifier = bytes32(MAX_CLAIMS + 1);
         verifier.setVerify(true);
+        vm.prank(user);
+        vm.expectRevert(Airdrop.MaxClaimsExceeded.selector);
+        airdrop.claim(new uint256[](0), finalNullifier, user);
+    }
+
+    function testClaimMaxClaimsBoundary() public {
+        verifier.setVerify(true);
+
+        // Claim MAX_CLAIMS - 1 times (999 claims) - should all succeed
+        for (uint256 i = 0; i < MAX_CLAIMS - 1; i++) {
+            bytes32 claimNullifier = bytes32(i);
+            address claimRecipient = address(uint160(i + 100));
+            vm.prank(claimRecipient);
+            airdrop.claim(new uint256[](0), claimNullifier, claimRecipient);
+        }
+
+        // This should succeed - the MAX_CLAIMS-th claim (1000th claim)
+        bytes32 nullifier = bytes32(MAX_CLAIMS - 1);
+        address boundaryRecipient = address(uint160(MAX_CLAIMS - 1 + 100));
+        vm.prank(boundaryRecipient);
+        airdrop.claim(new uint256[](0), nullifier, boundaryRecipient);
+
+        // Now we're at max claims - next claim should fail
+        bytes32 finalNullifier = bytes32(MAX_CLAIMS + 100);
         vm.prank(user);
         vm.expectRevert(Airdrop.MaxClaimsExceeded.selector);
         airdrop.claim(new uint256[](0), finalNullifier, user);
