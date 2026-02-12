@@ -21,7 +21,7 @@ contract ReentrancyGuard {
     }
 }
 
-contract Airdrop {
+contract Airdrop is ReentrancyGuard {
     error NullifierAlreadyUsed();
     error InvalidProof();
     error InvalidRoot();
@@ -76,7 +76,7 @@ contract Airdrop {
         usedNullifiers[nullifier] = true;
         totalClaimed += CLAIM_AMOUNT;
 
-        bool success = token.transfer(recipient, CLAIM_AMOUNT);
+        (bool success, ) = address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
         if (!success) revert InsufficientBalance();
 
         emit Claimed(recipient, nullifier);
@@ -93,7 +93,8 @@ contract Airdrop {
     }
 
     function withdrawTokens(uint256 amount) external onlyOwner {
-        if (!token.transfer(owner, amount)) revert TransferFailed();
+        (bool success, ) = address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, owner, amount));
+        if (!success) revert TransferFailed();
     }
 
     function isNullifierUsed(bytes32 nullifier) external view returns (bool) {

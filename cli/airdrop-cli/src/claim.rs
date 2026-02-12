@@ -1,9 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use hex::FromHex;
 use k256::ecdsa::SigningKey;
 use k256::elliptic_curve::sec1::ToEncodedPoint;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 use std::fs::File;
