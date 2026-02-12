@@ -1,0 +1,37 @@
+# Merkle tree files (large)
+merkle_tree.txt
+index_map.txt
+
+# Noir build artifacts
+circuits/*/target/
+circuits/*/*.json
+circuits/*/*.sol
+
+# Rust
+target/
+Cargo.lock
+
+# Node
+node_modules/
+package-lock.json
+
+# Environment
+.env
+*.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Compiled contracts
+artifacts/
+cache/
+broadcast/

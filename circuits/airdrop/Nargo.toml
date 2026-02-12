@@ -1,0 +1,6 @@
+[package]
+name = "airdrop"
+type = "bin"
+authors = [""]
+
+[dependencies]
