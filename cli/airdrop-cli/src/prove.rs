@@ -25,9 +25,13 @@ struct Cli {
 
 #[derive(Debug, Deserialize)]
 struct ClaimInput {
+    #[allow(dead_code)]
     merkle_root: String,
+    #[allow(dead_code)]
     recipient: String,
+    #[allow(dead_code)]
     nullifier: String,
+    #[allow(dead_code)]
     merkle_proof: Vec<String>,
     #[allow(dead_code)]
     private_key_field: String,

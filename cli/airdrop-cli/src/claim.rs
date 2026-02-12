@@ -13,17 +13,6 @@ use airdrop_cli::{
     get_merkle_proof, hex_encode, parse_address, validate_merkle_root, write_file_atomic,
 };
 
-/// Converts a byte array to a hex string field representation.
-///
-/// # Arguments
-/// * `bytes` - The byte array to convert
-///
-/// # Returns
-/// Hex string with "0x" prefix
-pub fn bytes_to_field(bytes: &[u8]) -> String {
-    format!("0x{}", hex::encode(bytes))
-}
-
 #[derive(Parser)]
 #[command(name = "claim")]
 #[command(about = "Generate airdrop claim proof", long_about = None)]
@@ -319,13 +308,5 @@ mod tests {
         let address2 = private_key_to_address(&signing_key2).unwrap();
 
         assert_eq!(address1, address2);
-    }
-
-    #[test]
-    fn test_bytes_to_field() {
-        let bytes: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
-        let result = bytes_to_field(&bytes);
-        assert!(result.starts_with("0x"));
-        assert_eq!(result.len(), 10);
     }
 }

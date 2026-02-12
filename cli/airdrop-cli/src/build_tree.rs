@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_build_merkle_tree_power_of_two() {
         let leaves: Vec<[u8; 32]> = (0..4).map(|i| [i as u8; 32]).collect();
-        let (tree, root) = build_merkle_tree(leaves);
+        let (tree, _root) = build_merkle_tree(leaves);
         assert_eq!(tree.len(), 3);
         assert_eq!(tree[0].len(), 4);
         assert_eq!(tree[1].len(), 2);
