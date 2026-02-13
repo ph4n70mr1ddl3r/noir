@@ -291,4 +291,15 @@ contract Airdrop is ReentrancyGuard {
     function isNullifierUsed(bytes32 nullifier) external view returns (bool) {
         return usedNullifiers[nullifier];
     }
+
+    function claimableBalance() external view returns (uint256) {
+        return token.balanceOf(address(this));
+    }
+
+    function remainingClaims() external view returns (uint256) {
+        if (maxClaims <= claimCount) {
+            return 0;
+        }
+        return maxClaims - claimCount;
+    }
 }

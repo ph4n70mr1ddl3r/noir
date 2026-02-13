@@ -494,6 +494,56 @@ contract AirdropTest is Test {
         airdrop.pause();
         vm.stopPrank();
     }
+
+    function testClaimableBalance() public view {
+        uint256 expectedBalance = MAX_CLAIMS * CLAIM_AMOUNT;
+        assertEq(airdrop.claimableBalance(), expectedBalance);
+    }
+
+    function testRemainingClaims() public view {
+        assertEq(airdrop.remainingClaims(), MAX_CLAIMS);
+    }
+
+    function testRemainingClaimsAfterClaims() public {
+        verifier.setVerify(true);
+        for (uint256 i = 0; i < 5; i++) {
+            bytes32 claimNullifier = bytes32(i + 5000);
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 300));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+        }
+        assertEq(airdrop.remainingClaims(), MAX_CLAIMS - 5);
+    }
+
+    function testRemainingClaimsWhenMaxReached() public {
+        verifier.setVerify(true);
+        for (uint256 i = 0; i < MAX_CLAIMS; i++) {
+            bytes32 claimNullifier = bytes32(i + 10000);
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 400));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+        }
+        assertEq(airdrop.remainingClaims(), 0);
+    }
+
+    function testOperationNotExecutedTwice() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.updateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        assertTrue(airdrop.executedOperations(operationHash));
+
+        // After execution, schedule is deleted so TimelockNotExpired is raised
+        vm.expectRevert(Airdrop.TimelockNotExpired.selector);
+        airdrop.updateRoot(newRoot);
+        vm.stopPrank();
+    }
 }
 
 contract ReentrancyToken is IERC20 {

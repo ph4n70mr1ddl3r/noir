@@ -35,11 +35,13 @@ struct ClaimInput {
     merkle_root: String,
     recipient: String,
     nullifier: String,
-    /// TODO: Required for real proof generation - the Merkle proof path
+    #[allow(dead_code)]
     merkle_proof: Vec<String>,
-    /// TODO: Required for real proof generation - the Merkle proof indices
+    #[allow(dead_code)]
     merkle_indices: Vec<bool>,
+    #[allow(dead_code)]
     leaf_index: usize,
+    #[allow(dead_code)]
     claimer_address: String,
 }
 
