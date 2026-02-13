@@ -78,6 +78,13 @@ pub fn build_merkle_tree(leaves: MerkleTreeLevel) -> Result<(MerkleTree, [u8; 32
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    let estimated_mem = ESTIMATED_MEMORY_PER_ADDRESS * MAX_ADDRESSES;
+    println!(
+        "Warning: Building tree for up to {} addresses may use ~{}MB of memory",
+        MAX_ADDRESSES,
+        estimated_mem / 1_000_000
+    );
+
     println!("Reading addresses from {:?}...", cli.input);
     let file = File::open(&cli.input).context("Failed to open input file")?;
     let reader = BufReader::new(file);
@@ -111,15 +118,6 @@ fn main() -> Result<()> {
                 "Number of addresses ({}) exceeds maximum allowed ({}). Consider splitting your input file into multiple batches.",
                 leaves.len(),
                 MAX_ADDRESSES
-            );
-        }
-
-        if leaves.len() == 1 {
-            let estimated_mem = ESTIMATED_MEMORY_PER_ADDRESS * MAX_ADDRESSES;
-            println!(
-                "Warning: Building tree for up to {} addresses may use ~{}MB of memory",
-                MAX_ADDRESSES,
-                estimated_mem / 1_000_000
             );
         }
 

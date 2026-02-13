@@ -87,6 +87,9 @@ pub fn compute_nullifier(private_key_bytes: &[u8; 32]) -> Result<[u8; 32]> {
 }
 
 fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
+    if !path.exists() {
+        anyhow::bail!("Index map file does not exist: {:?}", path);
+    }
     let file = File::open(path).context("Failed to open index map file")?;
     let metadata = file.metadata().context("Failed to get file metadata")?;
     let estimated_entries = (metadata.len() as usize / 64).max(16);
@@ -122,6 +125,9 @@ fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
 const MAX_TREE_SIZE: usize = 100_000_000;
 
 fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
+    if !path.exists() {
+        anyhow::bail!("Merkle tree file does not exist: {:?}", path);
+    }
     let file = File::open(path).context("Failed to open Merkle tree file")?;
     let reader = BufReader::new(file);
 
@@ -414,6 +420,27 @@ mod tests {
             0xec, 0x6f, 0x37, 0xd3, 0x6d, 0x55, 0x0d, 0x8e, 0xef, 0x8e, 0xad, 0xfc, 0xc7, 0x52,
             0x9a, 0x56, 0x37, 0xfc,
         ];
+        assert_eq!(nullifier, expected);
+    }
+
+    #[test]
+    fn test_compute_nullifier_uses_little_endian() {
+        let key = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+            0x1d, 0x1e, 0x1f, 0x20,
+        ];
+        let nullifier = compute_nullifier(&key).unwrap();
+
+        let mut hasher = Keccak256::new();
+        let mut le_key = key;
+        le_key.reverse();
+        hasher.update(le_key);
+        let mut domain_padded = [0u8; 32];
+        domain_padded[28..32].copy_from_slice(&DOMAIN_SEPARATOR_BYTES);
+        hasher.update(domain_padded);
+        let expected: [u8; 32] = hasher.finalize().into();
+
         assert_eq!(nullifier, expected);
     }
 
