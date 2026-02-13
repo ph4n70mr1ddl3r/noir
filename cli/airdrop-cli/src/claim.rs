@@ -58,6 +58,8 @@ struct ClaimOutput {
     claimer_address: String,
 }
 
+const DOMAIN_SEPARATOR_BYTES: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
+
 /// Computes a nullifier from a private key to prevent double-claiming.
 ///
 /// Uses Keccak256 with a domain separator for cryptographic strength.
@@ -69,9 +71,8 @@ struct ClaimOutput {
 /// # Returns
 /// 32-byte nullifier hash
 pub fn compute_nullifier(private_key_bytes: &[u8]) -> Result<[u8; 32]> {
-    let domain_separator: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
     let mut domain_padded = [0u8; 32];
-    domain_padded[28..32].copy_from_slice(&domain_separator);
+    domain_padded[28..32].copy_from_slice(&DOMAIN_SEPARATOR_BYTES);
     let mut hasher = Keccak256::new();
     hasher.update(private_key_bytes);
     hasher.update(domain_padded);
@@ -365,8 +366,12 @@ mod tests {
     fn test_compute_nullifier_known_value() {
         let key = [0x11u8; 32];
         let nullifier = compute_nullifier(&key).unwrap();
-        assert_ne!(nullifier, [0u8; 32]);
-        assert_eq!(nullifier.len(), 32);
+        let expected: [u8; 32] = [
+            0x98, 0x05, 0x1f, 0x98, 0xf8, 0xff, 0xc5, 0xe2, 0xc6, 0xac, 0x01, 0x5b, 0x6f, 0x18,
+            0xec, 0x6f, 0x37, 0xd3, 0x6d, 0x55, 0x0d, 0x8e, 0xef, 0x8e, 0xad, 0xfc, 0xc7, 0x52,
+            0x9a, 0x56, 0x37, 0xfc,
+        ];
+        assert_eq!(nullifier, expected);
     }
 
     #[test]

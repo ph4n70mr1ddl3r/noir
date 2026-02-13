@@ -3,8 +3,9 @@ use std::ec::sec_p256k1;
 
 // Maximum depth for Merkle tree (2^26 = ~67M accounts)
 global MERKLE_DEPTH = 26;
-// Domain separator for nullifier computation to prevent cross-context replay
-global NULLIFIER_DOMAIN_SEPARATOR = 0xa1b2c3d4;
+// Domain separator bytes for nullifier computation to prevent cross-context replay
+// Must match CLI: [0xa1, 0xb2, 0xc3, 0xd4] placed at bytes 28-31 of 32-byte array
+global DOMAIN_SEPARATOR_BYTES: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 // secp256k1 curve order for private key validation
 global SECP256K1_ORDER: Field = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
 
@@ -62,10 +63,10 @@ fn validate_private_key(private_key: Field) {
 // Consistent with CLI nullifier computation (HMAC-Keccak256 in CLI, Keccak256 here)
 fn compute_nullifier(private_key: Field) -> Field {
     let mut domain_padded: [u8; 32] = [0; 32];
-    domain_padded[28] = 0xa1;
-    domain_padded[29] = 0xb2;
-    domain_padded[30] = 0xc3;
-    domain_padded[31] = 0xd4;
+    domain_padded[28] = DOMAIN_SEPARATOR_BYTES[0];
+    domain_padded[29] = DOMAIN_SEPARATOR_BYTES[1];
+    domain_padded[30] = DOMAIN_SEPARATOR_BYTES[2];
+    domain_padded[31] = DOMAIN_SEPARATOR_BYTES[3];
     let hash = keccak256([private_key.to_le_bytes(), domain_padded]);
     hash
 }
