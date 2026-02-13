@@ -25,8 +25,11 @@ struct Cli {
 
 #[derive(Debug, Deserialize)]
 struct ClaimInput {
+    #[cfg_attr(not(feature = "mock-proofs"), allow(dead_code))]
     merkle_root: String,
+    #[cfg_attr(not(feature = "mock-proofs"), allow(dead_code))]
     recipient: String,
+    #[cfg_attr(not(feature = "mock-proofs"), allow(dead_code))]
     nullifier: String,
     #[allow(dead_code)]
     merkle_proof: Vec<String>,

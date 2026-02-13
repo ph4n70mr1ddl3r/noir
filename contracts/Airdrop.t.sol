@@ -321,7 +321,13 @@ contract AirdropTest is Test {
         vm.startPrank(owner);
         airdrop.scheduleUpdateRoot(newRoot);
 
-        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        bytes32 operationHash;
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, shl(224, 0x757064617465526f6f74)) // "updateRoot"
+            mstore(add(ptr, 0x20), shl(192, shr(192, newRoot)))
+            operationHash := keccak256(ptr, 0x24)
+        }
         assertGt(airdrop.timelockSchedule(operationHash), 0);
 
         airdrop.cancelOperation(operationHash);
