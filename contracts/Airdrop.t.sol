@@ -278,6 +278,59 @@ contract AirdropTest is Test {
         new Airdrop(address(token), address(verifier), merkleRoot, 0);
         vm.stopPrank();
     }
+
+    function testOwnershipTransfer() public {
+        address newOwner = address(0x3);
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.NotOwner.selector);
+        airdrop.transferOwnership(newOwner);
+
+        vm.prank(owner);
+        airdrop.transferOwnership(newOwner);
+        assertEq(airdrop.pendingOwner(), newOwner);
+        assertEq(airdrop.owner(), owner);
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.NotOwner.selector);
+        airdrop.acceptOwnership();
+
+        vm.prank(newOwner);
+        airdrop.acceptOwnership();
+        assertEq(airdrop.owner(), newOwner);
+        assertEq(airdrop.pendingOwner(), address(0));
+    }
+
+    function testTransferOwnershipZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InvalidRecipient.selector);
+        airdrop.transferOwnership(address(0));
+    }
+
+    function testCancelOperation() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encodePacked("updateRoot", newRoot));
+        assertGt(airdrop.timelockSchedule(operationHash), 0);
+
+        airdrop.cancelOperation(operationHash);
+        assertEq(airdrop.timelockSchedule(operationHash), 0);
+
+        vm.warp(block.timestamp + 2 days + 1);
+        vm.expectRevert(Airdrop.TimelockNotExpired.selector);
+        airdrop.updateRoot(newRoot);
+        vm.stopPrank();
+    }
+
+    function testCancelOperationNotScheduled() public {
+        bytes32 fakeHash = bytes32(uint256(999));
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InvalidTimelock.selector);
+        airdrop.cancelOperation(fakeHash);
+    }
 }
 
 contract Malicious {

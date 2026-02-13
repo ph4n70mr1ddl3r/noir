@@ -99,8 +99,11 @@ contract Airdrop is ReentrancyGuard {
         if (msg.sender != owner) revert NotOwner();
     }
 
-    function _hashOperation(bytes memory data) internal pure returns (bytes32) {
-        return keccak256(abi.encode(data));
+    function _hashOperation(bytes memory data) internal pure returns (bytes32 result) {
+        assembly ("memory-safe") {
+            let ptr := add(data, 32)
+            result := keccak256(ptr, mload(data))
+        }
     }
 
     function transferOwnership(address newOwner) external onlyOwner {
