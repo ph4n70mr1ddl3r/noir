@@ -2,6 +2,9 @@
 name = "airdrop-cli"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70"
+license = "MIT"
+description = "CLI tools for Noir ZK airdrop system"
 
 [features]
 default = []
@@ -17,6 +20,32 @@ sha3 = "0.10"
 k256 = { version = "0.13", features = ["ecdsa"] }
 zeroize = "1.7"
 scopeguard = "1.2"
+thiserror = "1.0"
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[lints.rust]
+missing_debug_implementations = "warn"
+rust_2018_idioms = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+too_many_lines = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+unnecessary_wraps = "allow"
+incompatible_msrv = "allow"
+map_unwrap_or = "allow"
+redundant_closure_for_method_calls = "allow"
+needless_continue = "allow"
+doc_markdown = "allow"
+uninlined_format_args = "allow"
+unnecessary_debug_formatting = "allow"
 
 [[bin]]
 name = "build-tree"

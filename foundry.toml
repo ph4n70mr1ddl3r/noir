@@ -4,9 +4,29 @@ out = "out"
 libs = ["lib"]
 solc = "0.8.20"
 verbosity = 3
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+gas_reports = ["Airdrop"]
 
 [profile.ci]
 fuzz = { runs = 256 }
 invariant = { runs = 1000 }
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/config/config.toml
+[profile.dev]
+optimizer = false
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = true
+int_types = "long"
+quote_style = "double"
+
+[fuzz]
+runs = 256
+max_test_rejects = 65536
+seed = "0x3e8"
+dictionary_weight = 40
+include_storage = true
+include_push_bytes = true

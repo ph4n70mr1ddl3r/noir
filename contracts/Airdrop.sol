@@ -53,14 +53,16 @@ contract Airdrop is ReentrancyGuard {
     error MaxClaimsBelowCurrent();
     error OperationExpired();
     error InvalidToken();
+    error ContractPaused();
+    error ContractNotPaused();
 
     address public owner;
     address public pendingOwner;
     IERC20 public token;
     IUltraVerifier public verifier;
     bytes32 public merkleRoot;
+    bool public paused;
 
-    // Amount of tokens each claimer receives (100 tokens, 18 decimals)
     uint256 public constant CLAIM_AMOUNT = 100 * 10 ** 18;
     uint256 public totalClaimed;
     uint256 public claimCount;
@@ -86,6 +88,26 @@ contract Airdrop is ReentrancyGuard {
     event OperationCancelled(bytes32 indexed operationHash);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PendingOwnerSet(address indexed pendingOwner);
+    event Paused(address indexed account);
+    event Unpaused(address indexed account);
+
+    modifier whenNotPaused() {
+        _checkNotPaused();
+        _;
+    }
+
+    modifier whenPaused() {
+        _checkPaused();
+        _;
+    }
+
+    function _checkNotPaused() internal view {
+        if (paused) revert ContractPaused();
+    }
+
+    function _checkPaused() internal view {
+        if (!paused) revert ContractNotPaused();
+    }
 
     constructor(address _token, address _verifier, bytes32 _merkleRoot, uint256 _maxClaims) {
         if (_token == address(0)) revert InvalidToken();
@@ -137,7 +159,17 @@ contract Airdrop is ReentrancyGuard {
         emit OperationCancelled(operationHash);
     }
 
-    function claim(uint256[] calldata proof, bytes32 nullifier, address recipient) external nonReentrant {
+    function pause() external onlyOwner whenNotPaused {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() external onlyOwner whenPaused {
+        paused = false;
+        emit Unpaused(msg.sender);
+    }
+
+    function claim(uint256[] calldata proof, bytes32 nullifier, address recipient) external nonReentrant whenNotPaused {
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
         if (recipient == address(0)) revert InvalidRecipient();
         if (proof.length == 0) revert EmptyProof();

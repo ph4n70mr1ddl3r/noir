@@ -432,6 +432,67 @@ contract AirdropTest is Test {
         assertEq(airdrop.claimCount(), 5);
         assertEq(airdrop.totalClaimed(), 5 * CLAIM_AMOUNT);
     }
+
+    function testPause() public {
+        verifier.setVerify(true);
+        assertFalse(airdrop.paused());
+
+        vm.prank(owner);
+        airdrop.pause();
+        assertTrue(airdrop.paused());
+
+        bytes32 nullifier = bytes32(uint256(456));
+        vm.prank(user);
+        vm.expectRevert(Airdrop.ContractPaused.selector);
+        airdrop.claim(_mockProof(), nullifier, user);
+    }
+
+    function testUnpause() public {
+        verifier.setVerify(true);
+
+        vm.startPrank(owner);
+        airdrop.pause();
+        assertTrue(airdrop.paused());
+
+        airdrop.unpause();
+        assertFalse(airdrop.paused());
+        vm.stopPrank();
+
+        bytes32 nullifier = bytes32(uint256(456));
+        vm.prank(user);
+        airdrop.claim(_mockProof(), nullifier, user);
+        assertTrue(airdrop.isNullifierUsed(nullifier));
+    }
+
+    function testPauseOnlyOwner() public {
+        vm.prank(user);
+        vm.expectRevert(Airdrop.NotOwner.selector);
+        airdrop.pause();
+    }
+
+    function testUnpauseOnlyOwner() public {
+        vm.startPrank(owner);
+        airdrop.pause();
+
+        vm.stopPrank();
+        vm.prank(user);
+        vm.expectRevert(Airdrop.NotOwner.selector);
+        airdrop.unpause();
+    }
+
+    function testUnpauseWhenNotPaused() public {
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.ContractNotPaused.selector);
+        airdrop.unpause();
+    }
+
+    function testPauseWhenAlreadyPaused() public {
+        vm.startPrank(owner);
+        airdrop.pause();
+        vm.expectRevert(Airdrop.ContractPaused.selector);
+        airdrop.pause();
+        vm.stopPrank();
+    }
 }
 
 contract ReentrancyToken is IERC20 {

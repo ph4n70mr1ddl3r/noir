@@ -1,5 +1,45 @@
+//! Common utilities for the airdrop CLI tools.
+//!
+//! This module provides shared functionality for:
+//! - Ethereum address parsing and validation
+//! - Keccak256 hashing operations
+//! - Merkle tree operations
+//! - Atomic file operations
+
 use sha3::{Digest, Keccak256};
 use std::path::Path;
+use thiserror::Error;
+
+/// Errors that can occur during common operations.
+#[derive(Debug, Error)]
+pub enum CommonError {
+    #[error("Invalid address length: expected 40 hex chars, got {0}")]
+    InvalidAddressLength(usize),
+
+    #[error("Invalid hex encoding: {0}")]
+    InvalidHex(#[source] hex::FromHexError),
+
+    #[error("Zero address not allowed")]
+    ZeroAddress,
+
+    #[error("Invalid merkle root length: expected 64 hex chars, got {0}")]
+    InvalidRootLength(usize),
+
+    #[error("Zero merkle root not allowed")]
+    ZeroRoot,
+
+    #[error("Merkle tree is empty")]
+    EmptyTree,
+
+    #[error("Leaf index {0} is out of bounds for tree with {1} leaves")]
+    LeafIndexOutOfBounds(usize, usize),
+
+    #[error("Encountered empty level {0} in Merkle tree")]
+    EmptyLevel(usize),
+
+    #[error("Sibling index {0} is out of bounds for level {1} with {2} nodes")]
+    SiblingIndexOutOfBounds(usize, usize, usize),
+}
 
 /// Parses an Ethereum address from a hex string.
 ///
@@ -10,23 +50,19 @@ use std::path::Path;
 /// A 20-byte array representing the address
 ///
 /// # Errors
-/// Returns an error if the address is not 40 hex characters or contains invalid hex
-pub fn parse_address(addr_str: &str) -> anyhow::Result<[u8; 20]> {
+/// Returns an error if the address is not 40 hex characters, contains invalid hex, or is zero
+pub fn parse_address(addr_str: &str) -> Result<[u8; 20], CommonError> {
     let cleaned = addr_str
         .trim()
         .strip_prefix("0x")
         .unwrap_or(addr_str.trim());
     if cleaned.len() != 40 {
-        anyhow::bail!(
-            "Invalid address length: expected 40 hex chars, got {}",
-            cleaned.len()
-        );
+        return Err(CommonError::InvalidAddressLength(cleaned.len()));
     }
     let mut address = [0u8; 20];
-    hex::decode_to_slice(cleaned, &mut address)
-        .map_err(|e| anyhow::anyhow!("Invalid hex encoding: {}", e))?;
+    hex::decode_to_slice(cleaned, &mut address).map_err(CommonError::InvalidHex)?;
     if address == [0u8; 20] {
-        anyhow::bail!("Zero address not allowed");
+        return Err(CommonError::ZeroAddress);
     }
     Ok(address)
 }
@@ -39,6 +75,7 @@ pub fn parse_address(addr_str: &str) -> anyhow::Result<[u8; 20]> {
 ///
 /// # Returns
 /// 32-byte hash result
+#[must_use]
 pub fn keccak256_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
     let hash = Keccak256::new()
         .chain_update(left)
@@ -67,20 +104,16 @@ pub fn hex_encode<T: AsRef<[u8]>>(data: T) -> String {
 /// 32-byte array representing the Merkle root
 ///
 /// # Errors
-/// Returns an error if the root is not 64 hex characters or contains invalid hex
-pub fn validate_merkle_root(root: &str) -> anyhow::Result<[u8; 32]> {
+/// Returns an error if the root is not 64 hex characters, contains invalid hex, or is zero
+pub fn validate_merkle_root(root: &str) -> Result<[u8; 32], CommonError> {
     let cleaned = root.trim().strip_prefix("0x").unwrap_or(root.trim());
     if cleaned.len() != 64 {
-        anyhow::bail!(
-            "Invalid merkle root length: expected 64 hex chars, got {}",
-            cleaned.len()
-        );
+        return Err(CommonError::InvalidRootLength(cleaned.len()));
     }
     let mut bytes = [0u8; 32];
-    hex::decode_to_slice(cleaned, &mut bytes)
-        .map_err(|e| anyhow::anyhow!("Invalid merkle root hex encoding: {}", e))?;
+    hex::decode_to_slice(cleaned, &mut bytes).map_err(CommonError::InvalidHex)?;
     if bytes == [0u8; 32] {
-        anyhow::bail!("Zero merkle root not allowed");
+        return Err(CommonError::ZeroRoot);
     }
     Ok(bytes)
 }
@@ -94,6 +127,7 @@ pub fn validate_merkle_root(root: &str) -> anyhow::Result<[u8; 32]> {
 ///
 /// # Returns
 /// 32-byte Merkle leaf
+#[must_use]
 pub fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
     let mut leaf = [0u8; 32];
     leaf[12..32].copy_from_slice(address);
@@ -110,19 +144,18 @@ pub fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
 /// A tuple containing:
 /// - Vector of sibling hashes forming the Merkle proof
 /// - Vector of booleans indicating direction (true = leaf is left child)
+///
+/// # Errors
+/// Returns an error if the tree is empty, the index is out of bounds, or the tree structure is invalid
 pub fn get_merkle_proof(
     tree: &[Vec<[u8; 32]>],
     leaf_index: usize,
-) -> anyhow::Result<(Vec<[u8; 32]>, Vec<bool>)> {
+) -> Result<(Vec<[u8; 32]>, Vec<bool>), CommonError> {
     if tree.is_empty() {
-        anyhow::bail!("Merkle tree is empty");
+        return Err(CommonError::EmptyTree);
     }
     if leaf_index >= tree[0].len() {
-        anyhow::bail!(
-            "Leaf index {} is out of bounds for tree with {} leaves",
-            leaf_index,
-            tree[0].len()
-        );
+        return Err(CommonError::LeafIndexOutOfBounds(leaf_index, tree[0].len()));
     }
 
     let mut proof = Vec::new();
@@ -135,7 +168,7 @@ pub fn get_merkle_proof(
 
     for (depth, level) in tree.iter().enumerate().take(tree.len() - 1) {
         if level.is_empty() {
-            anyhow::bail!("Encountered empty level {} in Merkle tree", depth);
+            return Err(CommonError::EmptyLevel(depth));
         }
 
         let is_left = current_index % 2 == 0;
@@ -146,12 +179,11 @@ pub fn get_merkle_proof(
         };
 
         if sibling_index >= level.len() {
-            anyhow::bail!(
-                "Sibling index {} is out of bounds for level {} with {} nodes",
+            return Err(CommonError::SiblingIndexOutOfBounds(
                 sibling_index,
                 depth,
-                level.len()
-            );
+                level.len(),
+            ));
         }
 
         proof.push(level[sibling_index]);
@@ -196,7 +228,7 @@ pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Resu
         file.flush()?;
     }
 
-    let cleanup = scopeguard::guard((), |_| {
+    let cleanup = scopeguard::guard((), |()| {
         let _ = std::fs::remove_file(&temp_path);
     });
 
@@ -228,7 +260,7 @@ mod tests {
     fn test_parse_address_invalid_length() {
         let addr = "0x1234";
         let result = parse_address(addr);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(CommonError::InvalidAddressLength(4))));
     }
 
     #[test]
@@ -236,6 +268,13 @@ mod tests {
         let addr = "0xghijklmnopqrstuvwxyz1234567890abcdef";
         let result = parse_address(addr);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_address_zero() {
+        let addr = "0x0000000000000000000000000000000000000000";
+        let result = parse_address(addr);
+        assert!(matches!(result, Err(CommonError::ZeroAddress)));
     }
 
     #[test]
@@ -271,7 +310,7 @@ mod tests {
     fn test_get_merkle_proof_empty_tree() {
         let tree: Vec<Vec<[u8; 32]>> = vec![];
         let result = get_merkle_proof(&tree, 0);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(CommonError::EmptyTree)));
     }
 
     #[test]
@@ -279,7 +318,10 @@ mod tests {
         let level0 = vec![[1u8; 32], [2u8; 32]];
         let tree = vec![level0];
         let result = get_merkle_proof(&tree, 5);
-        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(CommonError::LeafIndexOutOfBounds(5, 2))
+        ));
     }
 
     #[test]
@@ -300,7 +342,7 @@ mod tests {
     fn test_validate_merkle_root_invalid_length() {
         let root = "0x1234";
         let result = validate_merkle_root(root);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(CommonError::InvalidRootLength(4))));
     }
 
     #[test]
@@ -314,7 +356,7 @@ mod tests {
     fn test_validate_merkle_root_zero() {
         let root = "0x0000000000000000000000000000000000000000000000000000000000000000";
         let result = validate_merkle_root(root);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(CommonError::ZeroRoot)));
     }
 
     #[test]
