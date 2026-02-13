@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {Airdrop, IUltraVerifier, IERC20} from "../contracts/Airdrop.sol";
+import {Airdrop, IUltraVerifier, IERC20} from "./Airdrop.sol";
 
 contract MockVerifier is IUltraVerifier {
     bool shouldVerify = true;
@@ -361,6 +361,7 @@ contract AirdropTest is Test {
         verifier.setVerify(true);
         for (uint256 i = 0; i < 5; i++) {
             bytes32 claimNullifier = bytes32(i);
+            // forge-lint: disable-next-line(unsafe-typecast)
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
             airdrop.claim(new uint256[](1), claimNullifier, recipient);
