@@ -108,7 +108,8 @@ fn main() -> Result<()> {
 
         if leaves.len() > MAX_ADDRESSES {
             anyhow::bail!(
-                "Number of addresses exceeds maximum allowed ({})",
+                "Number of addresses ({}) exceeds maximum allowed ({}). Consider splitting your input file into multiple batches.",
+                leaves.len(),
                 MAX_ADDRESSES
             );
         }

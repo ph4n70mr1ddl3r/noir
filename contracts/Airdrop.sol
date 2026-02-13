@@ -63,6 +63,7 @@ contract Airdrop is ReentrancyGuard {
     // Amount of tokens each claimer receives (100 tokens, 18 decimals)
     uint256 public constant CLAIM_AMOUNT = 100 * 10 ** 18;
     uint256 public totalClaimed;
+    uint256 public claimCount;
     // Maximum number of claims allowed to prevent contract draining
     uint256 public maxClaims;
 
@@ -75,7 +76,7 @@ contract Airdrop is ReentrancyGuard {
 
     mapping(bytes32 => bool) public usedNullifiers;
 
-    event Claimed(address indexed recipient, bytes32 indexed nullifier);
+    event Claimed(address indexed recipient, bytes32 indexed nullifier, uint256 claimCount);
     event RootUpdated(bytes32 indexed oldRoot, bytes32 indexed newRoot);
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event RootInitialized(bytes32 indexed root);
@@ -141,7 +142,7 @@ contract Airdrop is ReentrancyGuard {
         if (recipient == address(0)) revert InvalidRecipient();
         if (proof.length == 0) revert EmptyProof();
 
-        if (totalClaimed / CLAIM_AMOUNT >= maxClaims) revert MaxClaimsExceeded();
+        if (claimCount >= maxClaims) revert MaxClaimsExceeded();
 
         uint256[] memory publicInputs = new uint256[](3);
         publicInputs[0] = uint256(merkleRoot);
@@ -153,13 +154,14 @@ contract Airdrop is ReentrancyGuard {
 
         usedNullifiers[nullifier] = true;
         totalClaimed += CLAIM_AMOUNT;
+        ++claimCount;
 
         (bool success, bytes memory data) =
             address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
         if (!success) revert TransferFailed();
         if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
 
-        emit Claimed(recipient, nullifier);
+        emit Claimed(recipient, nullifier, claimCount);
     }
 
     function updateRoot(bytes32 newRoot) external onlyOwner {
@@ -182,7 +184,7 @@ contract Airdrop is ReentrancyGuard {
 
     function setMaxClaims(uint256 _maxClaims) external onlyOwner {
         if (_maxClaims == 0) revert InvalidMaxClaims();
-        if (_maxClaims < totalClaimed / CLAIM_AMOUNT) revert MaxClaimsBelowCurrent();
+        if (_maxClaims < claimCount) revert MaxClaimsBelowCurrent();
         bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
         _executeTimelockedOperation(operationHash);
         maxClaims = _maxClaims;

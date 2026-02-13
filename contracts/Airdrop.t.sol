@@ -88,6 +88,7 @@ contract AirdropTest is Test {
         assertTrue(airdrop.isNullifierUsed(nullifier));
         assertEq(token.balanceOf(recipient), CLAIM_AMOUNT);
         assertEq(airdrop.totalClaimed(), CLAIM_AMOUNT);
+        assertEq(airdrop.claimCount(), 1);
     }
 
     function testClaimInvalidProof() public {
@@ -395,6 +396,23 @@ contract AirdropTest is Test {
         vm.expectRevert(Airdrop.OperationExpired.selector);
         airdrop.updateRoot(newRoot);
         vm.stopPrank();
+    }
+
+    function testClaimCountIncrements() public {
+        verifier.setVerify(true);
+        assertEq(airdrop.claimCount(), 0);
+
+        for (uint256 i = 0; i < 5; i++) {
+            bytes32 claimNullifier = bytes32(i + 1000);
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 200));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+            assertEq(airdrop.claimCount(), i + 1);
+        }
+
+        assertEq(airdrop.claimCount(), 5);
+        assertEq(airdrop.totalClaimed(), 5 * CLAIM_AMOUNT);
     }
 }
 

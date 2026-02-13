@@ -125,7 +125,6 @@ fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
     let file = File::open(path).context("Failed to open Merkle tree file")?;
     let reader = BufReader::new(file);
 
-    let mut max_level = 0usize;
     let mut level_entries: Vec<HashMap<usize, [u8; 32]>> = Vec::new();
 
     for line in reader.lines() {
@@ -156,7 +155,6 @@ fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
                 anyhow::bail!("Duplicate entry at level {}, index {}", level, index);
             }
             level_entries[level].insert(index, hash);
-            max_level = max_level.max(level);
         }
     }
 
@@ -353,8 +351,9 @@ fn main() -> Result<()> {
     let actual_depth = merkle_proof.len();
     if actual_depth != MERKLE_DEPTH {
         anyhow::bail!(
-            "Tree depth ({}) must equal MERKLE_DEPTH ({}). Pad the tree during building or use a tree with exactly 2^{} leaves.",
+            "Tree depth ({}) does not match expected MERKLE_DEPTH ({}). The Noir circuit expects exactly {} levels. Either rebuild the tree with at least 2^{} leaves, or adjust MERKLE_DEPTH in both the CLI and circuit.",
             actual_depth,
+            MERKLE_DEPTH,
             MERKLE_DEPTH,
             MERKLE_DEPTH
         );
