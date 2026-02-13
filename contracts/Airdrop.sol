@@ -148,9 +148,7 @@ contract Airdrop is ReentrancyGuard {
         if (!isValid) revert InvalidProof();
 
         usedNullifiers[nullifier] = true;
-        uint256 newTotal = totalClaimed + CLAIM_AMOUNT;
-        if (newTotal < totalClaimed) revert MaxClaimsExceeded();
-        totalClaimed = newTotal;
+        totalClaimed += CLAIM_AMOUNT;
 
         (bool success, bytes memory data) =
             address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));

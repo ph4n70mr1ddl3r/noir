@@ -41,11 +41,10 @@ struct Cli {
 /// # Note
 /// For odd number of nodes at any level, the last node is duplicated
 /// (hashed with itself) to maintain the binary tree structure.
-pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]) {
-    assert!(
-        !leaves.is_empty(),
-        "Cannot build Merkle tree from empty leaves"
-    );
+pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> Result<(Vec<Vec<[u8; 32]>>, [u8; 32])> {
+    if leaves.is_empty() {
+        anyhow::bail!("Cannot build Merkle tree from empty leaves");
+    }
 
     let mut tree: Vec<Vec<[u8; 32]>> = vec![leaves];
     let mut current_level = tree.last().unwrap();
@@ -70,7 +69,7 @@ pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]
 
     let root = tree.last().map(|level| level[0]).unwrap_or([0u8; 32]);
 
-    (tree, root)
+    Ok((tree, root))
 }
 
 fn main() -> Result<()> {
@@ -132,7 +131,7 @@ fn main() -> Result<()> {
 
     println!("Building Merkle tree...");
 
-    let (tree, root) = build_merkle_tree(leaves);
+    let (tree, root) = build_merkle_tree(leaves).context("Failed to build Merkle tree")?;
 
     println!("Merkle root: {}", hex_encode(root));
 
@@ -167,16 +166,16 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "Cannot build Merkle tree from empty leaves")]
     fn test_build_merkle_tree_empty() {
         let leaves: Vec<[u8; 32]> = vec![];
-        let _ = build_merkle_tree(leaves);
+        let result = build_merkle_tree(leaves);
+        assert!(result.is_err());
     }
 
     #[test]
     fn test_build_merkle_tree_single_leaf() {
         let leaves = vec![[1u8; 32]];
-        let (tree, root) = build_merkle_tree(leaves);
+        let (tree, root) = build_merkle_tree(leaves).unwrap();
         assert_eq!(tree.len(), 1);
         assert_eq!(tree[0].len(), 1);
         assert_eq!(root, tree[0][0]);
@@ -185,7 +184,7 @@ mod tests {
     #[test]
     fn test_build_merkle_tree_two_leaves() {
         let leaves = vec![[1u8; 32], [2u8; 32]];
-        let (tree, root) = build_merkle_tree(leaves);
+        let (tree, root) = build_merkle_tree(leaves).unwrap();
         assert_eq!(tree.len(), 2);
         assert_eq!(tree[0].len(), 2);
         assert_eq!(tree[1].len(), 1);
@@ -196,7 +195,7 @@ mod tests {
     #[test]
     fn test_build_merkle_tree_odd_leaves() {
         let leaves = vec![[1u8; 32], [2u8; 32], [3u8; 32]];
-        let (tree, root) = build_merkle_tree(leaves);
+        let (tree, root) = build_merkle_tree(leaves).unwrap();
         assert_eq!(tree.len(), 3);
         assert_eq!(tree[0].len(), 3);
         assert_eq!(tree[1].len(), 2);
@@ -210,7 +209,7 @@ mod tests {
     #[test]
     fn test_build_merkle_tree_power_of_two() {
         let leaves: Vec<[u8; 32]> = (0..4).map(|i| [i as u8; 32]).collect();
-        let (tree, _root) = build_merkle_tree(leaves);
+        let (tree, _root) = build_merkle_tree(leaves).unwrap();
         assert_eq!(tree.len(), 3);
         assert_eq!(tree[0].len(), 4);
         assert_eq!(tree[1].len(), 2);

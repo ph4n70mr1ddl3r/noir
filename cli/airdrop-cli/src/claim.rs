@@ -224,27 +224,29 @@ fn private_key_to_address(signing_key: &SigningKey) -> Result<[u8; 20]> {
 }
 
 fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
-    let mut key_array = [0u8; 32];
-    key_array.copy_from_slice(key_bytes);
-
-    if key_array == [0u8; 32] {
+    if key_bytes == &[0u8; 32] {
         anyhow::bail!("Private key cannot be zero");
     }
 
-    let mut cmp = 0i8;
-    for i in 0..32 {
-        cmp = cmp.signum().wrapping_add(
-            (key_array[i] as i64 - SECP256K1_ORDER[i] as i64)
-                .signum()
-                .clamp(-1, 1) as i8,
-        );
-        if cmp != 0 {
-            break;
-        }
+    let mut cmp: u8 = 0;
+    for i in (0..32).rev() {
+        let diff = (key_bytes[i] as i16) - (SECP256K1_ORDER[i] as i16);
+        let byte_lt = ((diff >> 15) & 1) as u8;
+        let byte_gt = ((-diff >> 15) & 1) as u8;
+        cmp = (cmp & !(byte_lt | byte_gt)) | byte_lt;
     }
 
-    if cmp >= 0 {
-        anyhow::bail!("Private key must be less than secp256k1 curve order");
+    if cmp == 0 {
+        let mut order_match = true;
+        for i in 0..32 {
+            if key_bytes[i] != SECP256K1_ORDER[i] {
+                order_match = false;
+                break;
+            }
+        }
+        if order_match || cmp == 0 && !order_match {
+            anyhow::bail!("Private key must be less than secp256k1 curve order");
+        }
     }
 
     Ok(())
@@ -336,30 +338,17 @@ fn main() -> Result<()> {
     }
 
     let actual_depth = merkle_proof.len();
-    if actual_depth > MERKLE_DEPTH {
+    if actual_depth != MERKLE_DEPTH {
         anyhow::bail!(
-            "Tree depth ({}) exceeds maximum supported depth ({})",
+            "Tree depth ({}) must equal MERKLE_DEPTH ({}). Pad the tree during building or use a tree with exactly 2^{} leaves.",
             actual_depth,
+            MERKLE_DEPTH,
             MERKLE_DEPTH
         );
     }
 
-    let mut padded_proof: Vec<[u8; 32]> = merkle_proof;
-    let mut padded_indices: Vec<bool> = merkle_indices;
-    while padded_proof.len() < MERKLE_DEPTH {
-        let last_hash = padded_proof.last().copied().unwrap_or([0u8; 32]);
-        padded_proof.push(last_hash);
-        let last_index = padded_indices.last().copied().unwrap_or(true);
-        padded_indices.push(last_index);
-    }
-
-    if actual_depth < MERKLE_DEPTH {
-        eprintln!(
-            "WARNING: Tree has {} levels but circuit expects {}. Padding with repeated hashes.",
-            actual_depth, MERKLE_DEPTH
-        );
-        eprintln!("WARNING: This may cause proof verification to fail. Consider using a tree with 2^{} leaves.", MERKLE_DEPTH);
-    }
+    let padded_proof: Vec<[u8; 32]> = merkle_proof;
+    let padded_indices: Vec<bool> = merkle_indices;
 
     println!("Computing nullifier...");
     let nullifier = compute_nullifier(&private_key_bytes)?;

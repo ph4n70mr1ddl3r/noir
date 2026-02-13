@@ -56,6 +56,9 @@ struct ProofOutput {
 
 #[cfg(feature = "mock-proofs")]
 fn generate_noir_proof(claim: &ClaimInput, circuit_path: &Path) -> Result<ProofOutput> {
+    #[cfg(not(debug_assertions))]
+    anyhow::bail!("Mock proofs cannot be used in release builds");
+
     if !circuit_path.exists() {
         anyhow::bail!("Circuit directory does not exist: {:?}", circuit_path);
     }
