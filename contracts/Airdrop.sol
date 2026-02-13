@@ -44,6 +44,8 @@ contract Airdrop is ReentrancyGuard {
     error TimelockNotExpired();
     error MaxClaimsExceeded();
     error InvalidTimelock();
+    error OperationNotScheduled();
+    error OperationAlreadyExecuted();
     error InvalidMaxClaims();
     error OperationAlreadyCancelled();
     error OperationAlreadyScheduled();
@@ -124,8 +126,8 @@ contract Airdrop is ReentrancyGuard {
     }
 
     function cancelOperation(bytes32 operationHash) external onlyOwner {
-        if (executedOperations[operationHash]) revert InvalidTimelock();
-        if (timelockSchedule[operationHash] == 0) revert InvalidTimelock();
+        if (executedOperations[operationHash]) revert OperationAlreadyExecuted();
+        if (timelockSchedule[operationHash] == 0) revert OperationNotScheduled();
         delete timelockSchedule[operationHash];
         emit OperationCancelled(operationHash);
     }
@@ -146,9 +148,9 @@ contract Airdrop is ReentrancyGuard {
         if (!isValid) revert InvalidProof();
 
         usedNullifiers[nullifier] = true;
-        unchecked {
-            totalClaimed += CLAIM_AMOUNT;
-        }
+        uint256 newTotal = totalClaimed + CLAIM_AMOUNT;
+        if (newTotal < totalClaimed) revert MaxClaimsExceeded();
+        totalClaimed = newTotal;
 
         (bool success, bytes memory data) =
             address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));

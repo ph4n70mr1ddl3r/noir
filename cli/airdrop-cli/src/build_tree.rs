@@ -7,6 +7,7 @@ use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
 const MAX_ADDRESSES: usize = 10_000_000;
+const ESTIMATED_MEMORY_PER_ADDRESS: usize = 164;
 
 #[derive(Parser)]
 #[command(name = "build-tree")]
@@ -106,6 +107,15 @@ fn main() -> Result<()> {
             anyhow::bail!(
                 "Number of addresses exceeds maximum allowed ({})",
                 MAX_ADDRESSES
+            );
+        }
+
+        if leaves.len() == 1 {
+            let estimated_mem = ESTIMATED_MEMORY_PER_ADDRESS * MAX_ADDRESSES;
+            println!(
+                "Warning: Building tree for up to {} addresses may use ~{}MB of memory",
+                MAX_ADDRESSES,
+                estimated_mem / 1_000_000
             );
         }
 

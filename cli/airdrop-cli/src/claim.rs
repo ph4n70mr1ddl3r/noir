@@ -10,13 +10,16 @@ use std::path::PathBuf;
 use zeroize::Zeroize;
 
 use airdrop_cli::{
-    get_merkle_proof, hex_encode, parse_address, validate_merkle_root, write_file_atomic,
+    get_merkle_proof, hex_encode, keccak256_hash, parse_address, validate_merkle_root,
+    write_file_atomic,
 };
 
 const SECP256K1_ORDER: [u8; 32] = [
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
     0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36, 0x41, 0x41,
 ];
+
+const MERKLE_DEPTH: usize = 26;
 
 #[derive(Parser)]
 #[command(name = "claim")]
@@ -183,6 +186,27 @@ fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
         tree.push(level);
     }
 
+    for level_num in 1..tree.len() {
+        for i in 0..tree[level_num].len() {
+            let left_idx = i * 2;
+            let right_idx = left_idx + 1;
+            let left = tree[level_num - 1][left_idx];
+            let right = if right_idx < tree[level_num - 1].len() {
+                tree[level_num - 1][right_idx]
+            } else {
+                left
+            };
+            let expected = keccak256_hash(left, right);
+            if tree[level_num][i] != expected {
+                anyhow::bail!(
+                    "Tree integrity check failed at level {} index {}: hash mismatch",
+                    level_num,
+                    i
+                );
+            }
+        }
+    }
+
     Ok(tree)
 }
 
@@ -308,6 +332,11 @@ fn main() -> Result<()> {
         anyhow::bail!("Invalid Merkle proof: proof is empty but tree has multiple leaves");
     }
 
+    let mut padded_proof: Vec<[u8; 32]> = merkle_proof;
+    while padded_proof.len() < MERKLE_DEPTH {
+        padded_proof.push([0u8; 32]);
+    }
+
     println!("Computing nullifier...");
     let nullifier = compute_nullifier(&private_key_bytes)?;
 
@@ -315,15 +344,12 @@ fn main() -> Result<()> {
 
     println!("Parsing recipient address...");
     let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;
-    if recipient == [0u8; 20] {
-        anyhow::bail!("Zero recipient address not allowed");
-    }
 
     let claim = ClaimOutput {
         merkle_root: cli.root.clone(),
         recipient: hex_encode(recipient),
         nullifier: hex_encode(nullifier),
-        merkle_proof: merkle_proof.iter().copied().map(hex_encode).collect(),
+        merkle_proof: padded_proof.iter().copied().map(hex_encode).collect(),
         leaf_index,
         claimer_address: hex_encode(claimer_address),
     };
@@ -336,8 +362,7 @@ fn main() -> Result<()> {
     println!("Claimer address: {}", hex_encode(claimer_address));
     println!("Recipient: {}", hex_encode(recipient));
     println!("Nullifier: {}", hex_encode(nullifier));
-    println!("Proof length: {} nodes", merkle_proof.len());
-
+    println!("Proof length: {} nodes", padded_proof.len());
     Ok(())
 }
 

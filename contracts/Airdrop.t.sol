@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {Airdrop, IUltraVerifier, IERC20} from "./Airdrop.sol";
+import {Airdrop, IUltraVerifier, IERC20, ReentrancyGuard} from "./Airdrop.sol";
 
 contract MockVerifier is IUltraVerifier {
     bool shouldVerify = true;
@@ -248,16 +248,26 @@ contract AirdropTest is Test {
     }
 
     function testReentrancyGuard() public {
+        ReentrancyToken reentrancyToken = new ReentrancyToken();
+        MockVerifier reentrancyVerifier = new MockVerifier();
+        reentrancyVerifier.setVerify(true);
+
+        vm.startPrank(owner);
+        Airdrop reentrancyAirdrop =
+            new Airdrop(address(reentrancyToken), address(reentrancyVerifier), merkleRoot, MAX_CLAIMS);
+        reentrancyToken.mint(address(reentrancyAirdrop), MAX_CLAIMS * CLAIM_AMOUNT);
+        vm.stopPrank();
+
+        Malicious attacker = new Malicious(address(reentrancyAirdrop));
+        reentrancyToken.setAttacker(address(attacker), address(reentrancyAirdrop));
+
         bytes32 nullifier = bytes32(uint256(999));
-        verifier.setVerify(true);
 
-        Malicious attacker = new Malicious(address(airdrop), address(verifier), nullifier);
-
-        vm.deal(address(attacker), 1 ether);
-
-        bytes32 nullifier2 = bytes32(uint256(998));
         vm.prank(address(attacker));
-        airdrop.claim(_mockProof(), nullifier2, address(attacker));
+        vm.expectRevert(Airdrop.TransferFailed.selector);
+        reentrancyAirdrop.claim(_mockProof(), nullifier, address(attacker));
+
+        assertFalse(reentrancyAirdrop.isNullifierUsed(nullifier));
     }
 
     function testZeroAddressInConstructor() public {
@@ -321,13 +331,7 @@ contract AirdropTest is Test {
         vm.startPrank(owner);
         airdrop.scheduleUpdateRoot(newRoot);
 
-        bytes32 operationHash;
-        assembly ("memory-safe") {
-            let ptr := mload(0x40)
-            mstore(ptr, shl(224, 0x757064617465526f6f74)) // "updateRoot"
-            mstore(add(ptr, 0x20), shl(192, shr(192, newRoot)))
-            operationHash := keccak256(ptr, 0x24)
-        }
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
         assertGt(airdrop.timelockSchedule(operationHash), 0);
 
         airdrop.cancelOperation(operationHash);
@@ -342,7 +346,7 @@ contract AirdropTest is Test {
     function testCancelOperationNotScheduled() public {
         bytes32 fakeHash = bytes32(uint256(999));
         vm.prank(owner);
-        vm.expectRevert(Airdrop.InvalidTimelock.selector);
+        vm.expectRevert(Airdrop.OperationNotScheduled.selector);
         airdrop.cancelOperation(fakeHash);
     }
 
@@ -382,18 +386,42 @@ contract AirdropTest is Test {
     }
 }
 
-contract Malicious {
+contract ReentrancyToken is IERC20 {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    address public attacker;
     Airdrop public airdrop;
-    address public verifier;
-    bytes32 public nullifier;
 
-    constructor(address _airdrop, address _verifier, bytes32 _nullifier) {
+    function setAttacker(address _attacker, address _airdrop) external {
+        attacker = _attacker;
         airdrop = Airdrop(_airdrop);
-        verifier = _verifier;
-        nullifier = _nullifier;
     }
 
-    function attack() external {
-        airdrop.claim(new uint256[](0), nullifier, address(this));
+    function transfer(address recipient, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[recipient] += amount;
+
+        if (recipient == attacker && attacker != address(0)) {
+            airdrop.claim(new uint256[](1), bytes32(uint256(12345)), attacker);
+        }
+
+        return true;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+}
+
+contract Malicious {
+    Airdrop public airdrop;
+
+    constructor(address _airdrop) {
+        airdrop = Airdrop(_airdrop);
     }
 }

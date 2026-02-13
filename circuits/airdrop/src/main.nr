@@ -8,6 +8,8 @@ global MERKLE_DEPTH = 26;
 global DOMAIN_SEPARATOR_BYTES: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 // secp256k1 curve order for private key validation
 global SECP256K1_ORDER: Field = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
+// Left shift amount to pad 20-byte address to 32 bytes (2^96 = 0x1000000000000000000000000)
+global ADDRESS_LEFT_SHIFT: Field = 0x1000000000000000000000000;
 
 struct MerkleProof {
     path: [Field; MERKLE_DEPTH],
@@ -72,8 +74,7 @@ fn compute_nullifier(private_key: Field) -> Field {
 }
 
 fn address_to_leaf(address: Field) -> Field {
-    // Pad address to 32 bytes (multiply by 2^96 to left-pad with 12 zeros)
-    address * Field::from(79228162514264337593543950336)
+    address * ADDRESS_LEFT_SHIFT
 }
 
 fn main(
@@ -83,6 +84,7 @@ fn main(
     private_key: Field,
     proof: MerkleProof,
 ) {
+    assert(merkle_root != Field::from(0));
     validate_private_key(private_key);
 
     let address = derive_address(private_key);

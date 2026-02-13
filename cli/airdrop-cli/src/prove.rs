@@ -6,6 +6,13 @@ use std::path::{Path, PathBuf};
 
 use airdrop_cli::write_file_atomic;
 
+#[cfg(feature = "mock-proofs")]
+const _: () = {
+    #[allow(dead_code)]
+    #[deprecated(note = "Mock proofs are enabled - do not use in production")]
+    struct MockProofsWarning;
+};
+
 #[derive(Parser)]
 #[command(name = "prove")]
 #[command(about = "Generate Noir proof from claim JSON", long_about = None)]
@@ -57,7 +64,7 @@ fn generate_noir_proof(claim: &ClaimInput, circuit_path: &Path) -> Result<ProofO
         claim.nullifier.clone(),
     ];
 
-    let proof = vec!["0x1".to_string(), "0x2".to_string()];
+    let proof = vec!["MOCK_0x1".to_string(), "MOCK_0x2".to_string()];
 
     Ok(ProofOutput {
         proof,
