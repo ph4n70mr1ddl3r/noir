@@ -2,6 +2,8 @@
 name = "airdrop"
 type = "bin"
 authors = [""]
+version = "0.1.0"
+license = "MIT"
 
 [compiler]
 minimum_nargo_version = "0.35.0"

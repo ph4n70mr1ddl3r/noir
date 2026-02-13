@@ -25,11 +25,8 @@ struct Cli {
 
 #[derive(Debug, Deserialize)]
 struct ClaimInput {
-    #[cfg(feature = "mock-proofs")]
     merkle_root: String,
-    #[cfg(feature = "mock-proofs")]
     recipient: String,
-    #[cfg(feature = "mock-proofs")]
     nullifier: String,
     #[allow(dead_code)]
     merkle_proof: Vec<String>,
@@ -75,7 +72,14 @@ fn generate_noir_proof(claim: &ClaimInput, circuit_path: &Path) -> Result<ProofO
 }
 
 #[cfg(not(feature = "mock-proofs"))]
-fn generate_noir_proof(_claim: &ClaimInput, _circuit_path: &Path) -> Result<ProofOutput> {
+fn generate_noir_proof(claim: &ClaimInput, _circuit_path: &Path) -> Result<ProofOutput> {
+    let _ = (
+        &claim.merkle_root,
+        &claim.recipient,
+        &claim.nullifier,
+        &claim.merkle_proof,
+        &claim.merkle_indices,
+    );
     anyhow::bail!(
         "Real proof generation not yet implemented. Please use the 'mock-proofs' feature for development only."
     );

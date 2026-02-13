@@ -6,7 +6,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
-const MAX_ADDRESSES: usize = 10_000_000;
+const MERKLE_DEPTH: usize = 26;
+const MAX_ADDRESSES: usize = 1 << MERKLE_DEPTH;
 const ESTIMATED_MEMORY_PER_ADDRESS: usize = 164;
 
 type MerkleTreeLevel = Vec<[u8; 32]>;
