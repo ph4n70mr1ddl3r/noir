@@ -32,6 +32,17 @@ contract ReentrancyGuard {
     }
 }
 
+function _hashOperation(bytes memory data) pure returns (bytes32) {
+    bytes32 result;
+    assembly {
+        let len := mload(data)
+        let memPtr := add(data, 0x20)
+        mstore(0x00, keccak256(memPtr, len))
+        result := mload(0x00)
+    }
+    return result;
+}
+
 contract Airdrop is ReentrancyGuard {
     error NullifierAlreadyUsed();
     error InvalidProof();
@@ -126,7 +137,7 @@ contract Airdrop is ReentrancyGuard {
 
     function updateRoot(bytes32 newRoot) external onlyOwner {
         if (newRoot == bytes32(0)) revert InvalidRoot();
-        bytes32 operationHash = keccak256(abi.encodePacked("updateRoot", newRoot));
+        bytes32 operationHash = _hashOperation(abi.encodePacked("updateRoot", newRoot));
         _executeTimelockedOperation(operationHash);
         bytes32 oldRoot = merkleRoot;
         merkleRoot = newRoot;
@@ -135,7 +146,7 @@ contract Airdrop is ReentrancyGuard {
 
     function updateVerifier(address newVerifier) external onlyOwner {
         if (newVerifier == address(0)) revert InvalidVerifier();
-        bytes32 operationHash = keccak256(abi.encodePacked("updateVerifier", newVerifier));
+        bytes32 operationHash = _hashOperation(abi.encodePacked("updateVerifier", newVerifier));
         _executeTimelockedOperation(operationHash);
         address oldVerifier = address(verifier);
         verifier = IUltraVerifier(newVerifier);
@@ -144,20 +155,20 @@ contract Airdrop is ReentrancyGuard {
 
     function setMaxClaims(uint256 _maxClaims) external onlyOwner {
         if (_maxClaims == 0) revert InvalidMaxClaims();
-        bytes32 operationHash = keccak256(abi.encodePacked("setMaxClaims", _maxClaims));
+        bytes32 operationHash = _hashOperation(abi.encodePacked("setMaxClaims", _maxClaims));
         _executeTimelockedOperation(operationHash);
         maxClaims = _maxClaims;
         emit MaxClaimsSet(_maxClaims);
     }
 
     function withdrawTokens(uint256 amount) external onlyOwner {
-        bytes32 operationHash = keccak256(abi.encodePacked("withdrawTokens", amount));
+        bytes32 operationHash = _hashOperation(abi.encodePacked("withdrawTokens", amount));
         _executeTimelockedOperation(operationHash);
         _withdrawTokensInternal(amount);
     }
 
     function scheduleWithdrawTokens(uint256 amount) external onlyOwner {
-        bytes32 operationHash = keccak256(abi.encodePacked("withdrawTokens", amount));
+        bytes32 operationHash = _hashOperation(abi.encodePacked("withdrawTokens", amount));
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
@@ -171,19 +182,19 @@ contract Airdrop is ReentrancyGuard {
 
     // Schedule a timelocked operation (must be called before execute)
     function scheduleUpdateRoot(bytes32 newRoot) external onlyOwner {
-        bytes32 operationHash = keccak256(abi.encodePacked("updateRoot", newRoot));
+        bytes32 operationHash = _hashOperation(abi.encodePacked("updateRoot", newRoot));
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     function scheduleUpdateVerifier(address newVerifier) external onlyOwner {
-        bytes32 operationHash = keccak256(abi.encodePacked("updateVerifier", newVerifier));
+        bytes32 operationHash = _hashOperation(abi.encodePacked("updateVerifier", newVerifier));
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     function scheduleSetMaxClaims(uint256 _maxClaims) external onlyOwner {
-        bytes32 operationHash = keccak256(abi.encodePacked("setMaxClaims", _maxClaims));
+        bytes32 operationHash = _hashOperation(abi.encodePacked("setMaxClaims", _maxClaims));
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
