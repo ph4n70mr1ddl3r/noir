@@ -9,6 +9,9 @@ use std::path::PathBuf;
 const MAX_ADDRESSES: usize = 10_000_000;
 const ESTIMATED_MEMORY_PER_ADDRESS: usize = 164;
 
+type MerkleTreeLevel = Vec<[u8; 32]>;
+type MerkleTree = Vec<MerkleTreeLevel>;
+
 #[derive(Parser)]
 #[command(name = "build-tree")]
 #[command(about = "Build Merkle tree from qualified accounts", long_about = None)]
@@ -41,12 +44,12 @@ struct Cli {
 /// # Note
 /// For odd number of nodes at any level, the last node is duplicated
 /// (hashed with itself) to maintain the binary tree structure.
-pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> Result<(Vec<Vec<[u8; 32]>>, [u8; 32])> {
+pub fn build_merkle_tree(leaves: MerkleTreeLevel) -> Result<(MerkleTree, [u8; 32])> {
     if leaves.is_empty() {
         anyhow::bail!("Cannot build Merkle tree from empty leaves");
     }
 
-    let mut tree: Vec<Vec<[u8; 32]>> = vec![leaves];
+    let mut tree: MerkleTree = vec![leaves];
     let mut current_level = tree.last().unwrap();
 
     while current_level.len() > 1 {

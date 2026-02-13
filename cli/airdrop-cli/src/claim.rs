@@ -244,7 +244,7 @@ fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
                 break;
             }
         }
-        if order_match || cmp == 0 && !order_match {
+        if order_match || cmp == 0 {
             anyhow::bail!("Private key must be less than secp256k1 curve order");
         }
     }
@@ -347,9 +347,6 @@ fn main() -> Result<()> {
         );
     }
 
-    let padded_proof: Vec<[u8; 32]> = merkle_proof;
-    let padded_indices: Vec<bool> = merkle_indices;
-
     println!("Computing nullifier...");
     let nullifier = compute_nullifier(&private_key_bytes)?;
 
@@ -362,8 +359,8 @@ fn main() -> Result<()> {
         merkle_root: cli.root.clone(),
         recipient: hex_encode(recipient),
         nullifier: hex_encode(nullifier),
-        merkle_proof: padded_proof.iter().copied().map(hex_encode).collect(),
-        merkle_indices: padded_indices,
+        merkle_proof: merkle_proof.iter().copied().map(hex_encode).collect(),
+        merkle_indices,
         leaf_index,
         claimer_address: hex_encode(claimer_address),
     };
@@ -376,7 +373,7 @@ fn main() -> Result<()> {
     println!("Claimer address: {}", hex_encode(claimer_address));
     println!("Recipient: {}", hex_encode(recipient));
     println!("Nullifier: {}", hex_encode(nullifier));
-    println!("Proof length: {} nodes", padded_proof.len());
+    println!("Proof length: {} nodes", merkle_proof.len());
     Ok(())
 }
 
