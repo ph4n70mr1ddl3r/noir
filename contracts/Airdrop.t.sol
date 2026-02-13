@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {Airdrop, IUltraVerifier, IERC20, ReentrancyGuard} from "./Airdrop.sol";
+import {Airdrop, IUltraVerifier, IERC20} from "./Airdrop.sol";
 
 contract MockVerifier is IUltraVerifier {
     bool shouldVerify = true;
