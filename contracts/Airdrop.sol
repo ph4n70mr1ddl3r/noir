@@ -52,6 +52,7 @@ contract Airdrop is ReentrancyGuard {
     error EmptyProof();
     error MaxClaimsBelowCurrent();
     error OperationExpired();
+    error InvalidToken();
 
     address public owner;
     address public pendingOwner;
@@ -86,7 +87,7 @@ contract Airdrop is ReentrancyGuard {
     event PendingOwnerSet(address indexed pendingOwner);
 
     constructor(address _token, address _verifier, bytes32 _merkleRoot, uint256 _maxClaims) {
-        if (_token == address(0)) revert InvalidRecipient();
+        if (_token == address(0)) revert InvalidToken();
         if (_verifier == address(0)) revert InvalidVerifier();
         if (_merkleRoot == bytes32(0)) revert InvalidRoot();
         if (_maxClaims == 0) revert InvalidMaxClaims();
@@ -235,7 +236,7 @@ contract Airdrop is ReentrancyGuard {
         uint256 executeAfter = timelockSchedule[operationHash];
         if (executeAfter == 0 || block.timestamp < executeAfter) revert TimelockNotExpired();
         if (block.timestamp > executeAfter + TIMELOCK_EXPIRATION) revert OperationExpired();
-        if (executedOperations[operationHash]) revert InvalidTimelock();
+        if (executedOperations[operationHash]) revert OperationAlreadyExecuted();
 
         executedOperations[operationHash] = true;
         delete timelockSchedule[operationHash];

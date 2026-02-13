@@ -108,7 +108,6 @@ contract AirdropTest is Test {
         vm.prank(user);
         airdrop.claim(_mockProof(), nullifier, user);
 
-        verifier.setVerify(true);
         vm.prank(user);
         vm.expectRevert(Airdrop.NullifierAlreadyUsed.selector);
         airdrop.claim(_mockProof(), nullifier, user);
@@ -272,7 +271,7 @@ contract AirdropTest is Test {
 
     function testZeroAddressInConstructor() public {
         vm.startPrank(owner);
-        vm.expectRevert(Airdrop.InvalidRecipient.selector);
+        vm.expectRevert(Airdrop.InvalidToken.selector);
         new Airdrop(address(0), address(verifier), merkleRoot, MAX_CLAIMS);
 
         vm.expectRevert(Airdrop.InvalidVerifier.selector);

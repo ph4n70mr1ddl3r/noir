@@ -168,6 +168,16 @@ fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
             anyhow::bail!("Level {} is empty", level_num);
         }
         let max_index = level_map.keys().max().unwrap_or(&0);
+        let expected_len = max_index + 1;
+        if level_map.len() != expected_len {
+            anyhow::bail!(
+                "Non-contiguous indices at level {}: expected {} entries (0..={}), found {}. Tree indices must be contiguous starting from 0.",
+                level_num,
+                expected_len,
+                max_index,
+                level_map.len()
+            );
+        }
         let mut level = vec![[0u8; 32]; max_index + 1];
         for (&idx, &hash) in level_map {
             level[idx] = hash;
@@ -187,6 +197,13 @@ fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
         }
 
         tree.push(level);
+    }
+
+    if tree.last().map(|l| l.len()) != Some(1) {
+        anyhow::bail!(
+            "Invalid tree structure: root level must have exactly 1 node, found {}",
+            tree.last().map(|l| l.len()).unwrap_or(0)
+        );
     }
 
     for level_num in 1..tree.len() {
