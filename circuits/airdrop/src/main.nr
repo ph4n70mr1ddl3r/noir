@@ -61,7 +61,12 @@ fn validate_private_key(private_key: Field) {
 // Computes nullifier using Keccak256 to prevent double-claiming
 // Consistent with CLI nullifier computation (HMAC-Keccak256 in CLI, Keccak256 here)
 fn compute_nullifier(private_key: Field) -> Field {
-    let hash = keccak256([private_key, Field::from(NULLIFIER_DOMAIN_SEPARATOR)]);
+    let mut domain_padded: [u8; 32] = [0; 32];
+    domain_padded[28] = 0xa1;
+    domain_padded[29] = 0xb2;
+    domain_padded[30] = 0xc3;
+    domain_padded[31] = 0xd4;
+    let hash = keccak256([private_key.to_le_bytes(), domain_padded]);
     hash
 }
 

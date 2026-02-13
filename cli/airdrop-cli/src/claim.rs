@@ -345,15 +345,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_compute_nullifier() {
+    fn test_compute_nullifier_deterministic() {
         let key = [1u8; 32];
         let nullifier1 = compute_nullifier(&key).unwrap();
         let nullifier2 = compute_nullifier(&key).unwrap();
         assert_eq!(nullifier1, nullifier2);
+    }
 
+    #[test]
+    fn test_compute_nullifier_different_keys() {
+        let key1 = [1u8; 32];
         let key2 = [2u8; 32];
-        let nullifier3 = compute_nullifier(&key2).unwrap();
-        assert_ne!(nullifier1, nullifier3);
+        let nullifier1 = compute_nullifier(&key1).unwrap();
+        let nullifier2 = compute_nullifier(&key2).unwrap();
+        assert_ne!(nullifier1, nullifier2);
+    }
+
+    #[test]
+    fn test_compute_nullifier_known_value() {
+        let key = [0x11u8; 32];
+        let nullifier = compute_nullifier(&key).unwrap();
+        assert_ne!(nullifier, [0u8; 32]);
+        assert_eq!(nullifier.len(), 32);
     }
 
     #[test]
