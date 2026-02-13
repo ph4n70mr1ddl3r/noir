@@ -33,7 +33,7 @@ struct Cli {
 /// Builds a Merkle tree from a list of leaf hashes.
 ///
 /// # Arguments
-/// * `leaves` - Vector of 32-byte leaf hashes
+/// * `leaves` - Vector of 32-byte leaf hashes (must not be empty)
 ///
 /// # Returns
 /// A tuple containing the tree (vector of levels) and the root hash
@@ -42,9 +42,10 @@ struct Cli {
 /// For odd number of nodes at any level, the last node is duplicated
 /// (hashed with itself) to maintain the binary tree structure.
 pub fn build_merkle_tree(leaves: Vec<[u8; 32]>) -> (Vec<Vec<[u8; 32]>>, [u8; 32]) {
-    if leaves.is_empty() {
-        return (vec![], [0u8; 32]);
-    }
+    assert!(
+        !leaves.is_empty(),
+        "Cannot build Merkle tree from empty leaves"
+    );
 
     let mut tree: Vec<Vec<[u8; 32]>> = vec![leaves];
     let mut current_level = tree.last().unwrap();
@@ -125,6 +126,10 @@ fn main() -> Result<()> {
     }
 
     println!("Total addresses: {}", leaves.len());
+    if leaves.is_empty() {
+        anyhow::bail!("No valid addresses found in input file");
+    }
+
     println!("Building Merkle tree...");
 
     let (tree, root) = build_merkle_tree(leaves);
@@ -162,11 +167,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[should_panic(expected = "Cannot build Merkle tree from empty leaves")]
     fn test_build_merkle_tree_empty() {
         let leaves: Vec<[u8; 32]> = vec![];
-        let (tree, root) = build_merkle_tree(leaves);
-        assert!(tree.is_empty());
-        assert_eq!(root, [0u8; 32]);
+        let _ = build_merkle_tree(leaves);
     }
 
     #[test]

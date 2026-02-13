@@ -104,11 +104,13 @@ pub fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
 /// * `leaf_index` - Index of the leaf in the tree
 ///
 /// # Returns
-/// Vector of sibling hashes forming the Merkle proof
+/// A tuple containing:
+/// - Vector of sibling hashes forming the Merkle proof
+/// - Vector of booleans indicating direction (true = leaf is left child)
 pub fn get_merkle_proof(
     tree: &[Vec<[u8; 32]>],
     leaf_index: usize,
-) -> anyhow::Result<Vec<[u8; 32]>> {
+) -> anyhow::Result<(Vec<[u8; 32]>, Vec<bool>)> {
     if tree.is_empty() {
         anyhow::bail!("Merkle tree is empty");
     }
@@ -121,10 +123,11 @@ pub fn get_merkle_proof(
     }
 
     let mut proof = Vec::new();
+    let mut indices = Vec::new();
     let mut current_index = leaf_index;
 
     if tree.len() < 2 {
-        return Ok(proof);
+        return Ok((proof, indices));
     }
 
     for (depth, level) in tree.iter().enumerate().take(tree.len() - 1) {
@@ -132,7 +135,8 @@ pub fn get_merkle_proof(
             anyhow::bail!("Encountered empty level {} in Merkle tree", depth);
         }
 
-        let sibling_index = if current_index.is_multiple_of(2) {
+        let is_left = current_index.is_multiple_of(2);
+        let sibling_index = if is_left {
             current_index + 1
         } else {
             current_index - 1
@@ -148,10 +152,11 @@ pub fn get_merkle_proof(
         }
 
         proof.push(level[sibling_index]);
+        indices.push(is_left);
         current_index /= 2;
     }
 
-    Ok(proof)
+    Ok((proof, indices))
 }
 
 /// Atomically writes content to a file using a temp file and rename.
@@ -252,24 +257,26 @@ mod tests {
         let level1 = vec![[5u8; 32], [6u8; 32]];
         let tree = vec![level0, level1];
 
-        let proof = get_merkle_proof(&tree, 0).unwrap();
+        let (proof, indices) = get_merkle_proof(&tree, 0).unwrap();
         assert_eq!(proof.len(), 1);
         assert_eq!(proof[0], [2u8; 32]);
+        assert_eq!(indices.len(), 1);
+        assert!(indices[0]);
     }
 
     #[test]
     fn test_get_merkle_proof_empty_tree() {
         let tree: Vec<Vec<[u8; 32]>> = vec![];
-        let proof = get_merkle_proof(&tree, 0);
-        assert!(proof.is_err());
+        let result = get_merkle_proof(&tree, 0);
+        assert!(result.is_err());
     }
 
     #[test]
     fn test_get_merkle_proof_out_of_bounds() {
         let level0 = vec![[1u8; 32], [2u8; 32]];
         let tree = vec![level0];
-        let proof = get_merkle_proof(&tree, 5);
-        assert!(proof.is_err());
+        let result = get_merkle_proof(&tree, 5);
+        assert!(result.is_err());
     }
 
     #[test]

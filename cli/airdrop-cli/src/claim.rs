@@ -57,6 +57,7 @@ struct ClaimOutput {
     recipient: String,
     nullifier: String,
     merkle_proof: Vec<String>,
+    merkle_indices: Vec<bool>,
     leaf_index: usize,
     claimer_address: String,
 }
@@ -66,18 +67,20 @@ const DOMAIN_SEPARATOR_BYTES: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 /// Computes a nullifier from a private key to prevent double-claiming.
 ///
 /// Uses Keccak256 with a domain separator for cryptographic strength.
-/// Consistent with Noir circuit implementation.
+/// Consistent with Noir circuit implementation which uses to_le_bytes().
 ///
 /// # Arguments
-/// * `private_key_bytes` - 32-byte private key
+/// * `private_key_bytes` - 32-byte private key (big-endian hex format)
 ///
 /// # Returns
 /// 32-byte nullifier hash
-pub fn compute_nullifier(private_key_bytes: &[u8]) -> Result<[u8; 32]> {
+pub fn compute_nullifier(private_key_bytes: &[u8; 32]) -> Result<[u8; 32]> {
     let mut domain_padded = [0u8; 32];
     domain_padded[28..32].copy_from_slice(&DOMAIN_SEPARATOR_BYTES);
+    let mut le_key = *private_key_bytes;
+    le_key.reverse();
     let mut hasher = Keccak256::new();
-    hasher.update(private_key_bytes);
+    hasher.update(le_key);
     hasher.update(domain_padded);
     let result = hasher.finalize();
     Ok(result.into())
@@ -325,16 +328,37 @@ fn main() -> Result<()> {
     }
 
     println!("Generating Merkle proof...");
-    let merkle_proof =
+    let (merkle_proof, merkle_indices) =
         get_merkle_proof(&tree, leaf_index).context("Failed to generate Merkle proof")?;
 
     if merkle_proof.is_empty() && !tree.is_empty() && tree[0].len() > 1 {
         anyhow::bail!("Invalid Merkle proof: proof is empty but tree has multiple leaves");
     }
 
+    let actual_depth = merkle_proof.len();
+    if actual_depth > MERKLE_DEPTH {
+        anyhow::bail!(
+            "Tree depth ({}) exceeds maximum supported depth ({})",
+            actual_depth,
+            MERKLE_DEPTH
+        );
+    }
+
     let mut padded_proof: Vec<[u8; 32]> = merkle_proof;
+    let mut padded_indices: Vec<bool> = merkle_indices;
     while padded_proof.len() < MERKLE_DEPTH {
-        padded_proof.push([0u8; 32]);
+        let last_hash = padded_proof.last().copied().unwrap_or([0u8; 32]);
+        padded_proof.push(last_hash);
+        let last_index = padded_indices.last().copied().unwrap_or(true);
+        padded_indices.push(last_index);
+    }
+
+    if actual_depth < MERKLE_DEPTH {
+        eprintln!(
+            "WARNING: Tree has {} levels but circuit expects {}. Padding with repeated hashes.",
+            actual_depth, MERKLE_DEPTH
+        );
+        eprintln!("WARNING: This may cause proof verification to fail. Consider using a tree with 2^{} leaves.", MERKLE_DEPTH);
     }
 
     println!("Computing nullifier...");
@@ -350,6 +374,7 @@ fn main() -> Result<()> {
         recipient: hex_encode(recipient),
         nullifier: hex_encode(nullifier),
         merkle_proof: padded_proof.iter().copied().map(hex_encode).collect(),
+        merkle_indices: padded_indices,
         leaf_index,
         claimer_address: hex_encode(claimer_address),
     };

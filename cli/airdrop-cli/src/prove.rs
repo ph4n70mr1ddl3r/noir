@@ -40,6 +40,8 @@ struct ClaimInput {
     nullifier: String,
     #[allow(dead_code)]
     merkle_proof: Vec<String>,
+    #[allow(dead_code)]
+    merkle_indices: Vec<bool>,
 }
 
 #[derive(Debug, Serialize)]
