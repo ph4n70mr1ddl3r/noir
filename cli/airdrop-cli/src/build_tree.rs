@@ -138,14 +138,14 @@ fn main() -> Result<()> {
 
     println!("Merkle root: {}", hex_encode(root));
 
-    let root_content = hex_encode(root);
+    let root_content = format!("{}\n", hex_encode(root));
     write_file_atomic(&cli.root_output, &root_content).context("Failed to write root file")?;
 
     let mut index_lines: Vec<String> = Vec::new();
     for (address, index) in &index_map {
         index_lines.push(format!("{}:{}", hex_encode(address), index));
     }
-    let index_content = index_lines.join("\n");
+    let index_content = format!("{}\n", index_lines.join("\n"));
     write_file_atomic(&cli.index_output, &index_content).context("Failed to write index file")?;
 
     if let Some(tree_path) = cli.tree_output {
@@ -156,7 +156,7 @@ fn main() -> Result<()> {
                 tree_lines.push(format!("{}:{}:{}", level_num, i, hex_encode(hash)));
             }
         }
-        let tree_content = tree_lines.join("\n");
+        let tree_content = format!("{}\n", tree_lines.join("\n"));
         write_file_atomic(&tree_path, &tree_content).context("Failed to write tree file")?;
     }
 
