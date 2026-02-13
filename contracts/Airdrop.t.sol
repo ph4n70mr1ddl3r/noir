@@ -128,7 +128,7 @@ contract AirdropTest is Test {
         // Drain the contract to max claims
         for (uint256 i = 0; i < MAX_CLAIMS; i++) {
             bytes32 claimNullifier = bytes32(i);
-            // casting to 'uint160' is safe because i + 100 is guaranteed to be within uint160 range for MAX_CLAIMS = 1000
+            // forge-lint: disable-next-line(unsafe-typecast)
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
             airdrop.claim(new uint256[](0), claimNullifier, recipient);
@@ -148,7 +148,7 @@ contract AirdropTest is Test {
         // Claim MAX_CLAIMS - 1 times (999 claims) - should all succeed
         for (uint256 i = 0; i < MAX_CLAIMS - 1; i++) {
             bytes32 claimNullifier = bytes32(i);
-            // casting to 'uint160' is safe because i + 100 is guaranteed to be within uint160 range for MAX_CLAIMS = 1000
+            // forge-lint: disable-next-line(unsafe-typecast)
             address claimRecipient = address(uint160(i + 100));
             vm.prank(claimRecipient);
             airdrop.claim(new uint256[](0), claimNullifier, claimRecipient);
@@ -156,7 +156,7 @@ contract AirdropTest is Test {
 
         // This should succeed - the MAX_CLAIMS-th claim (1000th claim)
         bytes32 nullifier = bytes32(MAX_CLAIMS - 1);
-        // casting to 'uint160' is safe because MAX_CLAIMS - 1 + 100 = 1099 is within uint160 range
+        // forge-lint: disable-next-line(unsafe-typecast)
         address boundaryRecipient = address(uint160(MAX_CLAIMS - 1 + 100));
         vm.prank(boundaryRecipient);
         airdrop.claim(new uint256[](0), nullifier, boundaryRecipient);
@@ -254,12 +254,10 @@ contract AirdropTest is Test {
         bytes32 nullifier = bytes32(uint256(999));
         verifier.setVerify(true);
 
-        // Create a malicious contract that tries to reenter
         Malicious attacker = new Malicious(address(airdrop), address(verifier), nullifier);
 
         vm.deal(address(attacker), 1 ether);
 
-        // Try to call claim from a contract (should succeed without reentrancy)
         bytes32 nullifier2 = bytes32(uint256(998));
         vm.prank(address(attacker));
         airdrop.claim(new uint256[](0), nullifier2, address(attacker));

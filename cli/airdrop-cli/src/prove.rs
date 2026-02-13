@@ -30,8 +30,6 @@ struct ClaimInput {
     nullifier: String,
     #[allow(dead_code)]
     merkle_proof: Vec<String>,
-    #[allow(dead_code)]
-    private_key_field: String,
 }
 
 #[derive(Debug, Serialize)]

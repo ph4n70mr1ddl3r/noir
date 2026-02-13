@@ -184,10 +184,21 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     println!("Validating Merkle root...");
-    let _merkle_root = validate_merkle_root(&cli.root).context("Invalid Merkle root")?;
+    let merkle_root = validate_merkle_root(&cli.root).context("Invalid Merkle root")?;
 
     println!("Loading Merkle tree...");
     let tree = load_merkle_tree(&cli.tree).context("Failed to load Merkle tree")?;
+
+    let tree_root = tree.last().and_then(|level| level.first()).copied();
+    if let Some(root) = tree_root {
+        if root != merkle_root {
+            anyhow::bail!(
+                "Merkle root mismatch: tree root {} does not match provided root {}",
+                hex_encode(root),
+                hex_encode(merkle_root)
+            );
+        }
+    }
 
     println!("Loading index map...");
     let index_map = load_index_map(&cli.index_map).context("Failed to load index map")?;
