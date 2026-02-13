@@ -393,7 +393,7 @@ contract AirdropTest is Test {
             // forge-lint: disable-next-line(unsafe-typecast)
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
-            airdrop.claim(new uint256[](1), claimNullifier, recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
         }
 
         vm.startPrank(owner);

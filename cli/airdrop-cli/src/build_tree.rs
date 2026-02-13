@@ -1,4 +1,4 @@
-use airdrop_cli::{address_to_leaf, hex_encode, keccak256_hash, write_file_atomic};
+use airdrop_cli::{address_to_leaf, hex_encode, keccak256_hash, write_file_atomic, MERKLE_DEPTH};
 use anyhow::{Context, Result};
 use clap::Parser;
 use std::collections::HashMap;
@@ -6,7 +6,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
-const MERKLE_DEPTH: usize = 26;
 const MAX_ADDRESSES: usize = 1 << MERKLE_DEPTH;
 const ESTIMATED_MEMORY_PER_ADDRESS: usize = 164;
 
@@ -79,13 +78,6 @@ pub fn build_merkle_tree(leaves: MerkleTreeLevel) -> Result<(MerkleTree, [u8; 32
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let estimated_mem = ESTIMATED_MEMORY_PER_ADDRESS * MAX_ADDRESSES;
-    println!(
-        "Warning: Building tree for up to {} addresses may use ~{}MB of memory",
-        MAX_ADDRESSES,
-        estimated_mem / 1_000_000
-    );
-
     println!("Reading addresses from {:?}...", cli.input);
     let file = File::open(&cli.input).context("Failed to open input file")?;
     let reader = BufReader::new(file);
@@ -132,7 +124,12 @@ fn main() -> Result<()> {
         anyhow::bail!("No valid addresses found in input file");
     }
 
-    println!("Building Merkle tree...");
+    let estimated_mem = ESTIMATED_MEMORY_PER_ADDRESS * leaves.len();
+    println!(
+        "Building Merkle tree for {} addresses (~{}MB estimated memory)...",
+        leaves.len(),
+        estimated_mem / 1_000_000
+    );
 
     let (tree, root) = build_merkle_tree(leaves).context("Failed to build Merkle tree")?;
 

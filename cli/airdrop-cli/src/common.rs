@@ -135,7 +135,13 @@ pub fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
     leaf
 }
 
+pub const MERKLE_DEPTH: usize = 26;
+
 /// Generates a Merkle proof for a leaf at the given index.
+///
+/// The proof is always padded to MERKLE_DEPTH (26) elements by hashing the current
+/// root with itself for any remaining levels. This ensures compatibility with the
+/// Noir circuit which expects exactly 26 proof elements.
 ///
 /// # Arguments
 /// * `tree` - The Merkle tree as a vector of levels
@@ -143,8 +149,8 @@ pub fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
 ///
 /// # Returns
 /// A tuple containing:
-/// - Vector of sibling hashes forming the Merkle proof
-/// - Vector of booleans indicating direction (true = leaf is left child)
+/// - Vector of exactly MERKLE_DEPTH sibling hashes forming the Merkle proof
+/// - Vector of exactly MERKLE_DEPTH booleans indicating direction (true = leaf is left child)
 ///
 /// # Errors
 /// Returns an error if the tree is empty, the index is out of bounds, or the tree structure is invalid
@@ -159,13 +165,10 @@ pub fn get_merkle_proof(
         return Err(CommonError::LeafIndexOutOfBounds(leaf_index, tree[0].len()));
     }
 
-    let mut proof = Vec::new();
-    let mut indices = Vec::new();
+    let mut proof = Vec::with_capacity(MERKLE_DEPTH);
+    let mut indices = Vec::with_capacity(MERKLE_DEPTH);
     let mut current_index = leaf_index;
-
-    if tree.len() < 2 {
-        return Ok((proof, indices));
-    }
+    let mut current_hash = tree[0][leaf_index];
 
     for (depth, level) in tree.iter().enumerate().take(tree.len() - 1) {
         if level.is_empty() {
@@ -187,7 +190,19 @@ pub fn get_merkle_proof(
 
         proof.push(sibling);
         indices.push(is_left);
+
+        current_hash = if is_left {
+            keccak256_hash(current_hash, sibling)
+        } else {
+            keccak256_hash(sibling, current_hash)
+        };
         current_index /= 2;
+    }
+
+    while proof.len() < MERKLE_DEPTH {
+        proof.push(current_hash);
+        indices.push(true);
+        current_hash = keccak256_hash(current_hash, current_hash);
     }
 
     Ok((proof, indices))
@@ -299,9 +314,9 @@ mod tests {
         let tree = vec![level0, level1];
 
         let (proof, indices) = get_merkle_proof(&tree, 0).unwrap();
-        assert_eq!(proof.len(), 1);
+        assert_eq!(proof.len(), MERKLE_DEPTH);
         assert_eq!(proof[0], [2u8; 32]);
-        assert_eq!(indices.len(), 1);
+        assert_eq!(indices.len(), MERKLE_DEPTH);
         assert!(indices[0]);
     }
 
@@ -334,7 +349,7 @@ mod tests {
         let tree = vec![level0, level1, level2];
 
         let (proof, indices) = get_merkle_proof(&tree, 2).unwrap();
-        assert_eq!(proof.len(), 2);
+        assert_eq!(proof.len(), MERKLE_DEPTH);
         assert_eq!(proof[0], [3u8; 32]);
         assert!(indices[0]);
     }

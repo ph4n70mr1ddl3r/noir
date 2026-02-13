@@ -14,9 +14,8 @@ interface IERC20 {
 }
 
 contract ReentrancyGuard {
-    // Using uint256 values 1 and 2 instead of bool true/false for lock state
-    // This unconventional pattern still works correctly as 1 = unlocked, 2 = locked
-    uint256 private locked = 1;
+    bool private locked;
+
     error ReentrancyGuardReentrantCall();
 
     modifier nonReentrant() {
@@ -26,12 +25,12 @@ contract ReentrancyGuard {
     }
 
     function _nonReentrantBefore() internal {
-        if (locked != 1) revert ReentrancyGuardReentrantCall();
-        locked = 2;
+        if (locked) revert ReentrancyGuardReentrantCall();
+        locked = true;
     }
 
     function _nonReentrantAfter() internal {
-        locked = 1;
+        locked = false;
     }
 }
 
@@ -193,7 +192,9 @@ contract Airdrop is ReentrancyGuard {
 
         usedNullifiers[nullifier] = true;
         totalClaimed += CLAIM_AMOUNT;
-        ++claimCount;
+        unchecked {
+            ++claimCount;
+        }
 
         (bool success, bytes memory data) = address(token)
             .call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));

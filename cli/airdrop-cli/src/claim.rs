@@ -11,15 +11,13 @@ use zeroize::Zeroize;
 
 use airdrop_cli::{
     get_merkle_proof, hex_encode, keccak256_hash, parse_address, validate_merkle_root,
-    write_file_atomic,
+    write_file_atomic, MERKLE_DEPTH,
 };
 
 const SECP256K1_ORDER: [u8; 32] = [
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
     0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36, 0x41, 0x41,
 ];
-
-const MERKLE_DEPTH: usize = 26;
 
 #[derive(Parser)]
 #[command(name = "claim")]
@@ -354,13 +352,10 @@ fn main() -> Result<()> {
         anyhow::bail!("Invalid Merkle proof: proof is empty but tree has multiple leaves");
     }
 
-    let actual_depth = merkle_proof.len();
-    if actual_depth != MERKLE_DEPTH {
+    if merkle_proof.len() != MERKLE_DEPTH {
         anyhow::bail!(
-            "Tree depth ({}) does not match expected MERKLE_DEPTH ({}). The Noir circuit expects exactly {} levels. Either rebuild the tree with at least 2^{} leaves, or adjust MERKLE_DEPTH in both the CLI and circuit.",
-            actual_depth,
-            MERKLE_DEPTH,
-            MERKLE_DEPTH,
+            "Internal error: proof length ({}) does not match MERKLE_DEPTH ({})",
+            merkle_proof.len(),
             MERKLE_DEPTH
         );
     }
