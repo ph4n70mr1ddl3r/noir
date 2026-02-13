@@ -127,7 +127,7 @@ pub fn get_merkle_proof(
         return Ok(proof);
     }
 
-    for (depth, level) in tree.iter().enumerate().skip(1).take(tree.len() - 1) {
+    for (depth, level) in tree.iter().enumerate().take(tree.len() - 1) {
         if level.is_empty() {
             anyhow::bail!("Encountered empty level {} in Merkle tree", depth);
         }
@@ -254,7 +254,7 @@ mod tests {
 
         let proof = get_merkle_proof(&tree, 0).unwrap();
         assert_eq!(proof.len(), 1);
-        assert_eq!(proof[0], [6u8; 32]);
+        assert_eq!(proof[0], [2u8; 32]);
     }
 
     #[test]

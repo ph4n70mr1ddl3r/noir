@@ -1,6 +1,5 @@
 use std::hash::keccak256;
 use std::ec::sec_p256k1;
-use std::hash::poseidon2;
 
 // Maximum depth for Merkle tree (2^26 = ~67M accounts)
 global MERKLE_DEPTH = 26;
@@ -18,11 +17,18 @@ fn compute_merkle_root(leaf: Field, proof: MerkleProof) -> Field {
     let mut current = leaf;
 
     for i in 0..MERKLE_DEPTH {
-        if proof.indices[i] {
-            current = poseidon2([current, proof.path[i]]);
+        let left: [u8; 32] = if proof.indices[i] {
+            current.to_le_bytes()
         } else {
-            current = poseidon2([proof.path[i], current]);
-        }
+            proof.path[i].to_le_bytes()
+        };
+        let right: [u8; 32] = if proof.indices[i] {
+            proof.path[i].to_le_bytes()
+        } else {
+            current.to_le_bytes()
+        };
+        let hash = keccak256([left, right]);
+        current = hash;
     }
 
     current

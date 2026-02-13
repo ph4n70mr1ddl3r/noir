@@ -46,6 +46,9 @@ contract Airdrop is ReentrancyGuard {
     error InvalidTimelock();
     error InvalidMaxClaims();
     error OperationAlreadyCancelled();
+    error OperationAlreadyScheduled();
+    error EmptyProof();
+    error MaxClaimsBelowCurrent();
 
     address public owner;
     address public pendingOwner;
@@ -75,6 +78,7 @@ contract Airdrop is ReentrancyGuard {
     event OperationExecuted(bytes32 indexed operationHash);
     event OperationCancelled(bytes32 indexed operationHash);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event PendingOwnerSet(address indexed pendingOwner);
 
     constructor(address _token, address _verifier, bytes32 _merkleRoot, uint256 _maxClaims) {
         if (_token == address(0)) revert InvalidRecipient();
@@ -109,6 +113,7 @@ contract Airdrop is ReentrancyGuard {
     function transferOwnership(address newOwner) external onlyOwner {
         if (newOwner == address(0)) revert InvalidRecipient();
         pendingOwner = newOwner;
+        emit PendingOwnerSet(newOwner);
     }
 
     function acceptOwnership() external {
@@ -128,6 +133,7 @@ contract Airdrop is ReentrancyGuard {
     function claim(uint256[] calldata proof, bytes32 nullifier, address recipient) external nonReentrant {
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
         if (recipient == address(0)) revert InvalidRecipient();
+        if (proof.length == 0) revert EmptyProof();
 
         if (totalClaimed / CLAIM_AMOUNT >= maxClaims) revert MaxClaimsExceeded();
 
@@ -154,7 +160,7 @@ contract Airdrop is ReentrancyGuard {
 
     function updateRoot(bytes32 newRoot) external onlyOwner {
         if (newRoot == bytes32(0)) revert InvalidRoot();
-        bytes32 operationHash = _hashOperation(abi.encodePacked("updateRoot", newRoot));
+        bytes32 operationHash = _hashOperation(abi.encode("updateRoot", newRoot));
         _executeTimelockedOperation(operationHash);
         bytes32 oldRoot = merkleRoot;
         merkleRoot = newRoot;
@@ -163,7 +169,7 @@ contract Airdrop is ReentrancyGuard {
 
     function updateVerifier(address newVerifier) external onlyOwner {
         if (newVerifier == address(0)) revert InvalidVerifier();
-        bytes32 operationHash = _hashOperation(abi.encodePacked("updateVerifier", newVerifier));
+        bytes32 operationHash = _hashOperation(abi.encode("updateVerifier", newVerifier));
         _executeTimelockedOperation(operationHash);
         address oldVerifier = address(verifier);
         verifier = IUltraVerifier(newVerifier);
@@ -172,20 +178,22 @@ contract Airdrop is ReentrancyGuard {
 
     function setMaxClaims(uint256 _maxClaims) external onlyOwner {
         if (_maxClaims == 0) revert InvalidMaxClaims();
-        bytes32 operationHash = _hashOperation(abi.encodePacked("setMaxClaims", _maxClaims));
+        if (_maxClaims < totalClaimed / CLAIM_AMOUNT) revert MaxClaimsBelowCurrent();
+        bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
         _executeTimelockedOperation(operationHash);
         maxClaims = _maxClaims;
         emit MaxClaimsSet(_maxClaims);
     }
 
     function withdrawTokens(uint256 amount) external onlyOwner {
-        bytes32 operationHash = _hashOperation(abi.encodePacked("withdrawTokens", amount));
+        bytes32 operationHash = _hashOperation(abi.encode("withdrawTokens", amount));
         _executeTimelockedOperation(operationHash);
         _withdrawTokensInternal(amount);
     }
 
     function scheduleWithdrawTokens(uint256 amount) external onlyOwner {
-        bytes32 operationHash = _hashOperation(abi.encodePacked("withdrawTokens", amount));
+        bytes32 operationHash = _hashOperation(abi.encode("withdrawTokens", amount));
+        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
@@ -199,19 +207,22 @@ contract Airdrop is ReentrancyGuard {
 
     // Schedule a timelocked operation (must be called before execute)
     function scheduleUpdateRoot(bytes32 newRoot) external onlyOwner {
-        bytes32 operationHash = _hashOperation(abi.encodePacked("updateRoot", newRoot));
+        bytes32 operationHash = _hashOperation(abi.encode("updateRoot", newRoot));
+        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     function scheduleUpdateVerifier(address newVerifier) external onlyOwner {
-        bytes32 operationHash = _hashOperation(abi.encodePacked("updateVerifier", newVerifier));
+        bytes32 operationHash = _hashOperation(abi.encode("updateVerifier", newVerifier));
+        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     function scheduleSetMaxClaims(uint256 _maxClaims) external onlyOwner {
-        bytes32 operationHash = _hashOperation(abi.encodePacked("setMaxClaims", _maxClaims));
+        bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
+        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }

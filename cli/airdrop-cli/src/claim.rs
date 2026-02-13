@@ -13,6 +13,11 @@ use airdrop_cli::{
     get_merkle_proof, hex_encode, parse_address, validate_merkle_root, write_file_atomic,
 };
 
+const SECP256K1_ORDER: [u8; 32] = [
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
+    0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36, 0x41, 0x41,
+];
+
 #[derive(Parser)]
 #[command(name = "claim")]
 #[command(about = "Generate airdrop claim proof", long_about = None)]
@@ -190,8 +195,35 @@ fn private_key_to_address(signing_key: &SigningKey) -> Result<[u8; 20]> {
     Ok(address)
 }
 
+fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
+    let mut key_array = [0u8; 32];
+    key_array.copy_from_slice(key_bytes);
+
+    if key_array == [0u8; 32] {
+        anyhow::bail!("Private key cannot be zero");
+    }
+
+    let mut cmp = 0i8;
+    for i in 0..32 {
+        cmp = cmp.signum().wrapping_add(
+            (key_array[i] as i64 - SECP256K1_ORDER[i] as i64)
+                .signum()
+                .clamp(-1, 1) as i8,
+        );
+        if cmp != 0 {
+            break;
+        }
+    }
+
+    if cmp >= 0 {
+        anyhow::bail!("Private key must be less than secp256k1 curve order");
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
 
     println!("Validating Merkle root...");
     let merkle_root = validate_merkle_root(&cli.root).context("Invalid Merkle root")?;
@@ -225,7 +257,7 @@ fn main() -> Result<()> {
         buffer.zeroize();
         trimmed
     } else {
-        cli.private_key.clone()
+        std::mem::take(&mut cli.private_key)
     };
     let key_str_ref = key_str.strip_prefix("0x").unwrap_or(&key_str);
     if key_str_ref.is_empty() {
@@ -235,6 +267,7 @@ fn main() -> Result<()> {
     let mut key_bytes = hex::decode(key_str_ref).context("Invalid private key format")?;
     key_str.zeroize();
     if key_bytes.len() != 32 {
+        key_bytes.zeroize();
         anyhow::bail!(
             "Invalid private key length: expected 32 bytes, got {}",
             key_bytes.len()
@@ -243,6 +276,9 @@ fn main() -> Result<()> {
     let mut private_key_bytes = [0u8; 32];
     private_key_bytes.copy_from_slice(&key_bytes);
     key_bytes.zeroize();
+
+    validate_private_key_range(&private_key_bytes)
+        .context("Invalid private key: must be within secp256k1 curve order")?;
 
     let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;
 

@@ -62,6 +62,12 @@ contract AirdropTest is Test {
         vm.stopPrank();
     }
 
+    function _mockProof() internal pure returns (uint256[] memory) {
+        uint256[] memory proof = new uint256[](1);
+        proof[0] = 1;
+        return proof;
+    }
+
     function testConstructor() public view {
         assertEq(address(airdrop.token()), address(token));
         assertEq(address(airdrop.verifier()), address(verifier));
@@ -71,14 +77,13 @@ contract AirdropTest is Test {
     }
 
     function testClaimSuccess() public {
-        uint256[] memory proof = new uint256[](0);
         bytes32 nullifier = bytes32(uint256(456));
         address recipient = user;
 
         verifier.setVerify(true);
 
         vm.prank(user);
-        airdrop.claim(proof, nullifier, recipient);
+        airdrop.claim(_mockProof(), nullifier, recipient);
 
         assertTrue(airdrop.isNullifierUsed(nullifier));
         assertEq(token.balanceOf(recipient), CLAIM_AMOUNT);
@@ -86,86 +91,78 @@ contract AirdropTest is Test {
     }
 
     function testClaimInvalidProof() public {
-        uint256[] memory proof = new uint256[](0);
         bytes32 nullifier = bytes32(uint256(456));
 
         verifier.setVerify(false);
 
         vm.prank(user);
         vm.expectRevert(Airdrop.InvalidProof.selector);
-        airdrop.claim(proof, nullifier, user);
+        airdrop.claim(_mockProof(), nullifier, user);
     }
 
     function testClaimNullifierAlreadyUsed() public {
-        uint256[] memory proof = new uint256[](0);
         bytes32 nullifier = bytes32(uint256(456));
 
         verifier.setVerify(true);
 
         vm.prank(user);
-        airdrop.claim(proof, nullifier, user);
+        airdrop.claim(_mockProof(), nullifier, user);
 
         verifier.setVerify(true);
         vm.prank(user);
         vm.expectRevert(Airdrop.NullifierAlreadyUsed.selector);
-        airdrop.claim(proof, nullifier, user);
+        airdrop.claim(_mockProof(), nullifier, user);
     }
 
     function testClaimInvalidRecipient() public {
-        uint256[] memory proof = new uint256[](0);
         bytes32 nullifier = bytes32(uint256(456));
 
         verifier.setVerify(true);
 
         vm.prank(user);
         vm.expectRevert(Airdrop.InvalidRecipient.selector);
-        airdrop.claim(proof, nullifier, address(0));
+        airdrop.claim(_mockProof(), nullifier, address(0));
     }
 
     function testClaimMaxClaimsExceeded() public {
         verifier.setVerify(true);
 
-        // Drain the contract to max claims
         for (uint256 i = 0; i < MAX_CLAIMS; i++) {
             bytes32 claimNullifier = bytes32(i);
             // forge-lint: disable-next-line(unsafe-typecast)
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
-            airdrop.claim(new uint256[](0), claimNullifier, recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
         }
 
-        // Try to claim again - should fail at max claims boundary
         bytes32 finalNullifier = bytes32(MAX_CLAIMS + 1);
         verifier.setVerify(true);
         vm.prank(user);
         vm.expectRevert(Airdrop.MaxClaimsExceeded.selector);
-        airdrop.claim(new uint256[](0), finalNullifier, user);
+        airdrop.claim(_mockProof(), finalNullifier, user);
     }
 
     function testClaimMaxClaimsBoundary() public {
         verifier.setVerify(true);
 
-        // Claim MAX_CLAIMS - 1 times (999 claims) - should all succeed
         for (uint256 i = 0; i < MAX_CLAIMS - 1; i++) {
             bytes32 claimNullifier = bytes32(i);
             // forge-lint: disable-next-line(unsafe-typecast)
             address claimRecipient = address(uint160(i + 100));
             vm.prank(claimRecipient);
-            airdrop.claim(new uint256[](0), claimNullifier, claimRecipient);
+            airdrop.claim(_mockProof(), claimNullifier, claimRecipient);
         }
 
-        // This should succeed - the MAX_CLAIMS-th claim (1000th claim)
         bytes32 nullifier = bytes32(MAX_CLAIMS - 1);
         // forge-lint: disable-next-line(unsafe-typecast)
         address boundaryRecipient = address(uint160(MAX_CLAIMS - 1 + 100));
         vm.prank(boundaryRecipient);
-        airdrop.claim(new uint256[](0), nullifier, boundaryRecipient);
+        airdrop.claim(_mockProof(), nullifier, boundaryRecipient);
 
-        // Now we're at max claims - next claim should fail
         bytes32 finalNullifier = bytes32(MAX_CLAIMS + 100);
         vm.prank(user);
         vm.expectRevert(Airdrop.MaxClaimsExceeded.selector);
-        airdrop.claim(new uint256[](0), finalNullifier, user);
+        airdrop.claim(_mockProof(), finalNullifier, user);
     }
 
     function testUpdateRootTimelock() public {
@@ -260,7 +257,7 @@ contract AirdropTest is Test {
 
         bytes32 nullifier2 = bytes32(uint256(998));
         vm.prank(address(attacker));
-        airdrop.claim(new uint256[](0), nullifier2, address(attacker));
+        airdrop.claim(_mockProof(), nullifier2, address(attacker));
     }
 
     function testZeroAddressInConstructor() public {
@@ -307,13 +304,24 @@ contract AirdropTest is Test {
         airdrop.transferOwnership(address(0));
     }
 
+    function testPendingOwnerSetEvent() public {
+        address newOwner = address(0x3);
+        vm.prank(owner);
+        vm.expectEmit(true, false, false, true);
+        emit PendingOwnerSet(newOwner);
+        airdrop.transferOwnership(newOwner);
+        assertEq(airdrop.pendingOwner(), newOwner);
+    }
+
+    event PendingOwnerSet(address indexed pendingOwner);
+
     function testCancelOperation() public {
         bytes32 newRoot = bytes32(uint256(789));
 
         vm.startPrank(owner);
         airdrop.scheduleUpdateRoot(newRoot);
 
-        bytes32 operationHash = keccak256(abi.encodePacked("updateRoot", newRoot));
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
         assertGt(airdrop.timelockSchedule(operationHash), 0);
 
         airdrop.cancelOperation(operationHash);
@@ -330,6 +338,40 @@ contract AirdropTest is Test {
         vm.prank(owner);
         vm.expectRevert(Airdrop.InvalidTimelock.selector);
         airdrop.cancelOperation(fakeHash);
+    }
+
+    function testEmptyProof() public {
+        bytes32 nullifier = bytes32(uint256(456));
+        verifier.setVerify(true);
+        vm.prank(user);
+        vm.expectRevert(Airdrop.EmptyProof.selector);
+        airdrop.claim(new uint256[](0), nullifier, user);
+    }
+
+    function testScheduleOverwrite() public {
+        bytes32 newRoot = bytes32(uint256(789));
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+        vm.expectRevert(Airdrop.OperationAlreadyScheduled.selector);
+        airdrop.scheduleUpdateRoot(newRoot);
+        vm.stopPrank();
+    }
+
+    function testMaxClaimsBelowCurrent() public {
+        verifier.setVerify(true);
+        for (uint256 i = 0; i < 5; i++) {
+            bytes32 claimNullifier = bytes32(i);
+            address recipient = address(uint160(i + 100));
+            vm.prank(recipient);
+            airdrop.claim(new uint256[](1), claimNullifier, recipient);
+        }
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetMaxClaims(3);
+        vm.warp(block.timestamp + 2 days + 1);
+        vm.expectRevert(Airdrop.MaxClaimsBelowCurrent.selector);
+        airdrop.setMaxClaims(3);
+        vm.stopPrank();
     }
 }
 
