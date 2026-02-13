@@ -179,15 +179,13 @@ pub fn get_merkle_proof(
             current_index - 1
         };
 
-        if sibling_index >= level.len() {
-            return Err(CommonError::SiblingIndexOutOfBounds(
-                sibling_index,
-                depth,
-                level.len(),
-            ));
-        }
+        let sibling = if sibling_index >= level.len() {
+            level[current_index]
+        } else {
+            level[sibling_index]
+        };
 
-        proof.push(level[sibling_index]);
+        proof.push(sibling);
         indices.push(is_left);
         current_index /= 2;
     }
@@ -323,6 +321,22 @@ mod tests {
             result,
             Err(CommonError::LeafIndexOutOfBounds(5, 2))
         ));
+    }
+
+    #[test]
+    fn test_get_merkle_proof_odd_tree_last_leaf() {
+        let level0 = vec![[1u8; 32], [2u8; 32], [3u8; 32]];
+        let hash1 = keccak256_hash([1u8; 32], [2u8; 32]);
+        let hash2 = keccak256_hash([3u8; 32], [3u8; 32]);
+        let root = keccak256_hash(hash1, hash2);
+        let level1 = vec![hash1, hash2];
+        let level2 = vec![root];
+        let tree = vec![level0, level1, level2];
+
+        let (proof, indices) = get_merkle_proof(&tree, 2).unwrap();
+        assert_eq!(proof.len(), 2);
+        assert_eq!(proof[0], [3u8; 32]);
+        assert!(indices[0]);
     }
 
     #[test]
