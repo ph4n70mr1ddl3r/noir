@@ -2,7 +2,10 @@
 pragma solidity ^0.8.20;
 
 interface IUltraVerifier {
-    function verify(uint256[] calldata _proof, uint256[] calldata _publicInputs) external view returns (bool);
+    function verify(uint256[] calldata _proof, uint256[] calldata _publicInputs)
+        external
+        view
+        returns (bool);
 }
 
 interface IERC20 {
@@ -169,7 +172,11 @@ contract Airdrop is ReentrancyGuard {
         emit Unpaused(msg.sender);
     }
 
-    function claim(uint256[] calldata proof, bytes32 nullifier, address recipient) external nonReentrant whenNotPaused {
+    function claim(uint256[] calldata proof, bytes32 nullifier, address recipient)
+        external
+        nonReentrant
+        whenNotPaused
+    {
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
         if (recipient == address(0)) revert InvalidRecipient();
         if (proof.length == 0) revert EmptyProof();
@@ -188,8 +195,8 @@ contract Airdrop is ReentrancyGuard {
         totalClaimed += CLAIM_AMOUNT;
         ++claimCount;
 
-        (bool success, bytes memory data) =
-            address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
+        (bool success, bytes memory data) = address(token)
+            .call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
         if (!success) revert TransferFailed();
         if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
 

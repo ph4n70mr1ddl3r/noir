@@ -454,6 +454,19 @@ mod tests {
     }
 
     #[test]
+    fn test_private_key_to_address_known_vector() {
+        let mut key_bytes = [0u8; 32];
+        key_bytes[31] = 0x01;
+        let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
+        let address = private_key_to_address(&signing_key).unwrap();
+        let expected: [u8; 20] = [
+            0x7E, 0x5F, 0x45, 0x52, 0x09, 0x1A, 0x69, 0x12, 0x5D, 0x5D, 0xFC, 0xB7, 0xB8, 0xC2,
+            0x65, 0x90, 0x29, 0x39, 0x5B, 0xDF,
+        ];
+        assert_eq!(address, expected);
+    }
+
+    #[test]
     fn test_private_key_to_address_deterministic() {
         let key_bytes = [42u8; 32];
         let signing_key = SigningKey::from_slice(&key_bytes).unwrap();

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {Airdrop, IUltraVerifier, IERC20} from "./Airdrop.sol";
+import { Test } from "forge-std/Test.sol";
+import { Airdrop, IUltraVerifier, IERC20 } from "./Airdrop.sol";
 
 contract MockVerifier is IUltraVerifier {
     bool shouldVerify = true;
@@ -271,8 +271,9 @@ contract AirdropTest is Test {
         reentrancyVerifier.setVerify(true);
 
         vm.startPrank(owner);
-        Airdrop reentrancyAirdrop =
-            new Airdrop(address(reentrancyToken), address(reentrancyVerifier), merkleRoot, MAX_CLAIMS);
+        Airdrop reentrancyAirdrop = new Airdrop(
+            address(reentrancyToken), address(reentrancyVerifier), merkleRoot, MAX_CLAIMS
+        );
         reentrancyToken.mint(address(reentrancyAirdrop), MAX_CLAIMS * CLAIM_AMOUNT);
         vm.stopPrank();
 

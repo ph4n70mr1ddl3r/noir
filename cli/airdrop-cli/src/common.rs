@@ -12,6 +12,7 @@ use thiserror::Error;
 
 /// Errors that can occur during common operations.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum CommonError {
     #[error("Invalid address length: expected 40 hex chars, got {0}")]
     InvalidAddressLength(usize),
