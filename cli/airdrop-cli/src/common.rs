@@ -143,6 +143,17 @@ pub const MERKLE_DEPTH: usize = 26;
 /// root with itself for any remaining levels. This ensures compatibility with the
 /// Noir circuit which expects exactly 26 proof elements.
 ///
+/// # Padding Behavior
+///
+/// When the tree has fewer than 26 levels (i.e., fewer than 2^26 leaves), the proof
+/// is padded by:
+/// 1. Adding the current computed hash as the sibling
+/// 2. Setting the index to `true` (left child)
+/// 3. Hashing the current hash with itself to get the next level
+///
+/// This matches the behavior in `build_merkle_tree` where odd nodes are hashed with
+/// themselves to maintain the binary tree structure.
+///
 /// # Arguments
 /// * `tree` - The Merkle tree as a vector of levels
 /// * `leaf_index` - Index of the leaf in the tree

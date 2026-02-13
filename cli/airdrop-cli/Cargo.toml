@@ -2,7 +2,7 @@
 name = "airdrop-cli"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.75"
 license = "MIT"
 description = "CLI tools for Noir ZK airdrop system"
 

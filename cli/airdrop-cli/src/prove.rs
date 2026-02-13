@@ -91,11 +91,15 @@ fn parse_private_key(key_str: &str) -> Result<[u8; 32]> {
 #[cfg(feature = "mock-proofs")]
 fn generate_noir_proof(
     claim: &ClaimInput,
-    _private_key: &[u8; 32],
+    private_key: &[u8; 32],
     circuit_path: &Path,
 ) -> Result<ProofOutput> {
     #[cfg(not(debug_assertions))]
     anyhow::bail!("Mock proofs cannot be used in release builds");
+
+    if private_key == &[0u8; 32] {
+        anyhow::bail!("Mock proofs still require a valid private key for input validation");
+    }
 
     if !circuit_path.exists() {
         anyhow::bail!("Circuit directory does not exist: {:?}", circuit_path);
@@ -125,15 +129,7 @@ fn generate_noir_proof(
     _private_key: &[u8; 32],
     _circuit_path: &Path,
 ) -> Result<ProofOutput> {
-    let _ = (
-        &claim.merkle_root,
-        &claim.recipient,
-        &claim.nullifier,
-        &claim.merkle_proof,
-        &claim.merkle_indices,
-        &claim.leaf_index,
-        &claim.claimer_address,
-    );
+    let _ = (&claim.merkle_root, &claim.recipient, &claim.nullifier);
     anyhow::bail!(
         "Real proof generation not yet implemented. Please use the 'mock-proofs' feature for development only."
     );
@@ -180,12 +176,20 @@ fn main() -> Result<()> {
 
     #[cfg(feature = "mock-proofs")]
     let mut private_key_bytes: [u8; 32] = {
-        if let Some(ref key_str) = cli.private_key {
-            if key_str != "-" {
-                let _ = parse_private_key(key_str)?;
+        let key_str = match cli.private_key {
+            Some(ref k) if k == "-" => {
+                let mut buffer = String::new();
+                std::io::stdin()
+                    .read_line(&mut buffer)
+                    .context("Failed to read private key from stdin")?;
+                let trimmed = buffer.trim().to_string();
+                buffer.zeroize();
+                trimmed
             }
-        }
-        [0u8; 32]
+            Some(ref k) => k.clone(),
+            None => anyhow::bail!("Private key is required even for mock proofs"),
+        };
+        parse_private_key(&key_str)?
     };
 
     println!("Generating Noir proof...");
