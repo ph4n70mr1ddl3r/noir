@@ -138,7 +138,7 @@ pub fn get_merkle_proof(
             anyhow::bail!("Encountered empty level {} in Merkle tree", depth);
         }
 
-        let is_left = current_index.is_multiple_of(2);
+        let is_left = current_index % 2 == 0;
         let sibling_index = if is_left {
             current_index + 1
         } else {

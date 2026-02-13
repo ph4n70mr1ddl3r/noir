@@ -212,11 +212,29 @@ contract AirdropTest is Test {
     function testOnlyOwner() public {
         vm.prank(user);
         vm.expectRevert(Airdrop.NotOwner.selector);
-        airdrop.scheduleUpdateRoot(bytes32(0));
+        airdrop.scheduleUpdateRoot(bytes32(uint256(1)));
 
         vm.prank(user);
         vm.expectRevert(Airdrop.NotOwner.selector);
         airdrop.updateRoot(bytes32(0));
+    }
+
+    function testScheduleUpdateRootZeroReverts() public {
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InvalidRoot.selector);
+        airdrop.scheduleUpdateRoot(bytes32(0));
+    }
+
+    function testScheduleUpdateVerifierZeroReverts() public {
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InvalidVerifier.selector);
+        airdrop.scheduleUpdateVerifier(address(0));
+    }
+
+    function testScheduleSetMaxClaimsZeroReverts() public {
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InvalidMaxClaims.selector);
+        airdrop.scheduleSetMaxClaims(0);
     }
 
     function testWithdrawTokens() public {
