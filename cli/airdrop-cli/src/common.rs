@@ -168,16 +168,24 @@ pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Resu
     let path = path.as_ref();
     let temp_path = path.with_extension("tmp");
 
-    let mut file = std::fs::File::create(&temp_path)?;
-    file.write_all(content.as_bytes())?;
-    file.flush()?;
-
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = file.metadata()?.permissions();
-        perms.set_mode(0o600);
-        file.set_permissions(perms)?;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&temp_path)?;
+        file.write_all(content.as_bytes())?;
+        file.flush()?;
+    }
+
+    #[cfg(not(unix))]
+    {
+        let mut file = std::fs::File::create(&temp_path)?;
+        file.write_all(content.as_bytes())?;
+        file.flush()?;
     }
 
     let cleanup = scopeguard::guard((), |_| {

@@ -69,7 +69,7 @@ pub fn compute_nullifier(private_key_bytes: &[u8]) -> Result<[u8; 32]> {
     domain_padded[28..32].copy_from_slice(&domain_separator);
     let mut hasher = Keccak256::new();
     hasher.update(private_key_bytes);
-    hasher.update(&domain_padded);
+    hasher.update(domain_padded);
     let result = hasher.finalize();
     Ok(result.into())
 }
@@ -216,7 +216,7 @@ fn main() -> Result<()> {
     let index_map = load_index_map(&cli.index_map).context("Failed to load index map")?;
 
     println!("Parsing private key...");
-    let key_str = if cli.private_key == "-" {
+    let mut key_str = if cli.private_key == "-" {
         let mut buffer = String::new();
         std::io::stdin()
             .read_line(&mut buffer)
@@ -227,11 +227,13 @@ fn main() -> Result<()> {
     } else {
         cli.private_key.clone()
     };
-    let key_str = key_str.strip_prefix("0x").unwrap_or(&key_str);
-    if key_str.is_empty() {
+    let key_str_ref = key_str.strip_prefix("0x").unwrap_or(&key_str);
+    if key_str_ref.is_empty() {
+        key_str.zeroize();
         anyhow::bail!("Private key is empty");
     }
-    let mut key_bytes = hex::decode(key_str).context("Invalid private key format")?;
+    let mut key_bytes = hex::decode(key_str_ref).context("Invalid private key format")?;
+    key_str.zeroize();
     if key_bytes.len() != 32 {
         anyhow::bail!(
             "Invalid private key length: expected 32 bytes, got {}",

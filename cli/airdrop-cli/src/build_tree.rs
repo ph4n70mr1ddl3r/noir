@@ -6,6 +6,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
+const MAX_ADDRESSES: usize = 10_000_000;
+
 #[derive(Parser)]
 #[command(name = "build-tree")]
 #[command(about = "Build Merkle tree from qualified accounts", long_about = None)]
@@ -99,6 +101,13 @@ fn main() -> Result<()> {
         }
         index_map.insert(address, leaves.len());
         leaves.push(leaf);
+
+        if leaves.len() > MAX_ADDRESSES {
+            anyhow::bail!(
+                "Number of addresses exceeds maximum allowed ({})",
+                MAX_ADDRESSES
+            );
+        }
 
         if (line_num + 1) % 100_000 == 0 {
             println!("Processed {} addresses...", line_num + 1);
