@@ -6,13 +6,6 @@ use std::path::{Path, PathBuf};
 
 use airdrop_cli::write_file_atomic;
 
-#[cfg(feature = "mock-proofs")]
-const _: () = {
-    #[allow(dead_code)]
-    #[deprecated(note = "Mock proofs are enabled - do not use in production")]
-    struct MockProofsWarning;
-};
-
 #[derive(Parser)]
 #[command(name = "prove")]
 #[command(about = "Generate Noir proof from claim JSON", long_about = None)]
@@ -32,11 +25,11 @@ struct Cli {
 
 #[derive(Debug, Deserialize)]
 struct ClaimInput {
-    #[cfg_attr(not(feature = "mock-proofs"), allow(dead_code))]
+    #[cfg(feature = "mock-proofs")]
     merkle_root: String,
-    #[cfg_attr(not(feature = "mock-proofs"), allow(dead_code))]
+    #[cfg(feature = "mock-proofs")]
     recipient: String,
-    #[cfg_attr(not(feature = "mock-proofs"), allow(dead_code))]
+    #[cfg(feature = "mock-proofs")]
     nullifier: String,
     #[allow(dead_code)]
     merkle_proof: Vec<String>,

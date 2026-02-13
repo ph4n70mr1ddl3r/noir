@@ -303,6 +303,7 @@ fn main() -> Result<()> {
 
     println!("Deriving address from private key...");
     let claimer_address = private_key_to_address(&signing_key)?;
+    drop(signing_key);
 
     println!("Looking up address in index map...");
     let leaf_index = index_map
@@ -345,7 +346,7 @@ fn main() -> Result<()> {
     let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;
 
     let claim = ClaimOutput {
-        merkle_root: cli.root.clone(),
+        merkle_root: hex_encode(merkle_root),
         recipient: hex_encode(recipient),
         nullifier: hex_encode(nullifier),
         merkle_proof: merkle_proof.iter().copied().map(hex_encode).collect(),
