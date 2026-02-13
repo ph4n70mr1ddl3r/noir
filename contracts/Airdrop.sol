@@ -32,17 +32,6 @@ contract ReentrancyGuard {
     }
 }
 
-function _hashOperation(bytes memory data) pure returns (bytes32) {
-    bytes32 result;
-    assembly {
-        let len := mload(data)
-        let memPtr := add(data, 0x20)
-        mstore(0x00, keccak256(memPtr, len))
-        result := mload(0x00)
-    }
-    return result;
-}
-
 contract Airdrop is ReentrancyGuard {
     error NullifierAlreadyUsed();
     error InvalidProof();
@@ -104,6 +93,10 @@ contract Airdrop is ReentrancyGuard {
 
     function _onlyOwner() internal view {
         if (msg.sender != owner) revert NotOwner();
+    }
+
+    function _hashOperation(bytes memory data) internal pure returns (bytes32) {
+        return keccak256(data);
     }
 
     function claim(uint256[] calldata proof, bytes32 nullifier, address recipient) external nonReentrant {
