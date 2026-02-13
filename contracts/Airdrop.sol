@@ -51,6 +51,7 @@ contract Airdrop is ReentrancyGuard {
     error OperationAlreadyScheduled();
     error EmptyProof();
     error MaxClaimsBelowCurrent();
+    error OperationExpired();
 
     address public owner;
     address public pendingOwner;
@@ -66,6 +67,8 @@ contract Airdrop is ReentrancyGuard {
 
     // Timelock delay for sensitive owner operations (2 days = 48 hours)
     uint256 public constant TIMELOCK_DELAY = 2 days;
+    // Operations expire after 14 days to prevent indefinite execution
+    uint256 public constant TIMELOCK_EXPIRATION = 14 days;
     mapping(bytes32 => uint256) public timelockSchedule;
     mapping(bytes32 => bool) public executedOperations;
 
@@ -231,6 +234,7 @@ contract Airdrop is ReentrancyGuard {
     function _executeTimelockedOperation(bytes32 operationHash) internal {
         uint256 executeAfter = timelockSchedule[operationHash];
         if (executeAfter == 0 || block.timestamp < executeAfter) revert TimelockNotExpired();
+        if (block.timestamp > executeAfter + TIMELOCK_EXPIRATION) revert OperationExpired();
         if (executedOperations[operationHash]) revert InvalidTimelock();
 
         executedOperations[operationHash] = true;

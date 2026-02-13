@@ -306,4 +306,41 @@ mod tests {
         let result = validate_merkle_root(root);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_write_file_atomic() {
+        use std::io::Read;
+
+        let temp_dir = std::env::temp_dir();
+        let test_path = temp_dir.join("test_write_file_atomic.txt");
+
+        let content = "test content\nline 2";
+        let result = write_file_atomic(&test_path, content);
+        assert!(result.is_ok());
+
+        let mut file = std::fs::File::open(&test_path).unwrap();
+        let mut read_content = String::new();
+        file.read_to_string(&mut read_content).unwrap();
+        assert_eq!(read_content, content);
+
+        let _ = std::fs::remove_file(&test_path);
+    }
+
+    #[test]
+    fn test_write_file_atomic_overwrite() {
+        use std::io::Read;
+
+        let temp_dir = std::env::temp_dir();
+        let test_path = temp_dir.join("test_write_file_atomic_overwrite.txt");
+
+        write_file_atomic(&test_path, "original content").unwrap();
+        write_file_atomic(&test_path, "new content").unwrap();
+
+        let mut file = std::fs::File::open(&test_path).unwrap();
+        let mut read_content = String::new();
+        file.read_to_string(&mut read_content).unwrap();
+        assert_eq!(read_content, "new content");
+
+        let _ = std::fs::remove_file(&test_path);
+    }
 }

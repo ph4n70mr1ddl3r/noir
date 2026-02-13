@@ -384,6 +384,19 @@ contract AirdropTest is Test {
         airdrop.setMaxClaims(3);
         vm.stopPrank();
     }
+
+    function testTimelockExpiration() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        // Wait for 14 days + 2 days = 16 days total (past expiration)
+        vm.warp(block.timestamp + 14 days + 2 days + 1);
+        vm.expectRevert(Airdrop.OperationExpired.selector);
+        airdrop.updateRoot(newRoot);
+        vm.stopPrank();
+    }
 }
 
 contract ReentrancyToken is IERC20 {
