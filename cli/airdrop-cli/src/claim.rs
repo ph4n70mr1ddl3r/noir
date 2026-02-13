@@ -228,28 +228,17 @@ fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
         anyhow::bail!("Private key cannot be zero");
     }
 
-    let mut cmp: u8 = 0;
-    for i in (0..32).rev() {
-        let diff = (key_bytes[i] as i16) - (SECP256K1_ORDER[i] as i16);
-        let byte_lt = ((diff >> 15) & 1) as u8;
-        let byte_gt = ((-diff >> 15) & 1) as u8;
-        cmp = (cmp & !(byte_lt | byte_gt)) | byte_lt;
-    }
-
-    if cmp == 0 {
-        let mut order_match = true;
-        for i in 0..32 {
-            if key_bytes[i] != SECP256K1_ORDER[i] {
-                order_match = false;
-                break;
+    for i in 0..32 {
+        match key_bytes[i].cmp(&SECP256K1_ORDER[i]) {
+            std::cmp::Ordering::Less => return Ok(()),
+            std::cmp::Ordering::Greater => {
+                anyhow::bail!("Private key must be less than secp256k1 curve order");
             }
-        }
-        if order_match || cmp == 0 {
-            anyhow::bail!("Private key must be less than secp256k1 curve order");
+            std::cmp::Ordering::Equal => continue,
         }
     }
 
-    Ok(())
+    anyhow::bail!("Private key must be less than secp256k1 curve order");
 }
 
 fn main() -> Result<()> {
@@ -429,5 +418,51 @@ mod tests {
         let address2 = private_key_to_address(&signing_key2).unwrap();
 
         assert_eq!(address1, address2);
+    }
+
+    #[test]
+    fn test_validate_private_key_range_valid() {
+        let valid_key = [1u8; 32];
+        assert!(validate_private_key_range(&valid_key).is_ok());
+    }
+
+    #[test]
+    fn test_validate_private_key_range_zero() {
+        let zero_key = [0u8; 32];
+        assert!(validate_private_key_range(&zero_key).is_err());
+    }
+
+    #[test]
+    fn test_validate_private_key_range_exceeds_order() {
+        let mut exceeds_order = SECP256K1_ORDER;
+        exceeds_order[31] = exceeds_order[31].wrapping_add(1);
+        assert!(validate_private_key_range(&exceeds_order).is_err());
+    }
+
+    #[test]
+    fn test_validate_private_key_range_equals_order() {
+        let equals_order = SECP256K1_ORDER;
+        assert!(validate_private_key_range(&equals_order).is_err());
+    }
+
+    #[test]
+    fn test_validate_private_key_range_just_below_order() {
+        let mut just_below = SECP256K1_ORDER;
+        just_below[31] -= 1;
+        assert!(validate_private_key_range(&just_below).is_ok());
+    }
+
+    #[test]
+    fn test_validate_private_key_range_edge_case_near_order() {
+        let mut edge_key = [0xFFu8; 32];
+        edge_key[15] = 0xFD;
+        assert!(validate_private_key_range(&edge_key).is_ok());
+    }
+
+    #[test]
+    fn test_validate_private_key_range_edge_case_exceeds() {
+        let mut edge_key = [0xFFu8; 32];
+        edge_key[15] = 0xFF;
+        assert!(validate_private_key_range(&edge_key).is_err());
     }
 }
