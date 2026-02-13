@@ -88,8 +88,10 @@ pub fn compute_nullifier(private_key_bytes: &[u8; 32]) -> Result<[u8; 32]> {
 
 fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
     let file = File::open(path).context("Failed to open index map file")?;
+    let metadata = file.metadata().context("Failed to get file metadata")?;
+    let estimated_entries = (metadata.len() as usize / 64).max(16);
     let reader = BufReader::new(file);
-    let mut map = HashMap::new();
+    let mut map = HashMap::with_capacity(estimated_entries);
 
     for (line_num, line) in reader.lines().enumerate() {
         let line = line.context("Failed to read line")?;
@@ -322,6 +324,10 @@ fn main() -> Result<()> {
     let claimer_address = private_key_to_address(&signing_key)?;
     drop(signing_key);
 
+    println!("Computing nullifier...");
+    let nullifier = compute_nullifier(&private_key_bytes)?;
+    private_key_bytes.zeroize();
+
     println!("Looking up address in index map...");
     let leaf_index = index_map
         .get(&claimer_address)
@@ -353,11 +359,6 @@ fn main() -> Result<()> {
             MERKLE_DEPTH
         );
     }
-
-    println!("Computing nullifier...");
-    let nullifier = compute_nullifier(&private_key_bytes)?;
-
-    private_key_bytes.zeroize();
 
     println!("Parsing recipient address...");
     let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;

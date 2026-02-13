@@ -79,6 +79,9 @@ pub fn validate_merkle_root(root: &str) -> anyhow::Result<[u8; 32]> {
     let mut bytes = [0u8; 32];
     hex::decode_to_slice(cleaned, &mut bytes)
         .map_err(|e| anyhow::anyhow!("Invalid merkle root hex encoding: {}", e))?;
+    if bytes == [0u8; 32] {
+        anyhow::bail!("Zero merkle root not allowed");
+    }
     Ok(bytes)
 }
 
@@ -135,7 +138,7 @@ pub fn get_merkle_proof(
             anyhow::bail!("Encountered empty level {} in Merkle tree", depth);
         }
 
-        let is_left = current_index % 2 == 0;
+        let is_left = current_index.is_multiple_of(2);
         let sibling_index = if is_left {
             current_index + 1
         } else {
@@ -303,6 +306,13 @@ mod tests {
     #[test]
     fn test_validate_merkle_root_invalid_hex() {
         let root = "0xghijklmnopqrstuvwxyz1234567890abcdef1234567890abcdef1234567890";
+        let result = validate_merkle_root(root);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_merkle_root_zero() {
+        let root = "0x0000000000000000000000000000000000000000000000000000000000000000";
         let result = validate_merkle_root(root);
         assert!(result.is_err());
     }
