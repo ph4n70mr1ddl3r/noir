@@ -123,7 +123,11 @@ pub fn get_merkle_proof(
     let mut proof = Vec::new();
     let mut current_index = leaf_index;
 
-    for (depth, level) in tree.iter().enumerate().skip(1) {
+    if tree.len() < 2 {
+        return Ok(proof);
+    }
+
+    for (depth, level) in tree.iter().enumerate().skip(1).take(tree.len() - 1) {
         if level.is_empty() {
             anyhow::bail!("Encountered empty level {} in Merkle tree", depth);
         }

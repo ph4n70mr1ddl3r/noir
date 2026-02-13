@@ -6,6 +6,8 @@ use std::hash::poseidon2;
 global MERKLE_DEPTH = 26;
 // Domain separator for nullifier computation to prevent cross-context replay
 global NULLIFIER_DOMAIN_SEPARATOR = 0xa1b2c3d4;
+// secp256k1 curve order for private key validation
+global SECP256K1_ORDER: Field = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
 
 struct MerkleProof {
     path: [Field; MERKLE_DEPTH],
@@ -32,9 +34,11 @@ fn derive_address(private_key: Field) -> Field {
     let secret_key = sec_p256k1::SecretKey::from_field(private_key);
     let public_key = secret_key.public_key();
     let public_key_bytes = public_key.to_bytes();
-    // Use Keccak256 hash of the public key (uncompressed format, skipping the first byte)
-    let hash = keccak256([public_key_bytes]);
-    // Take last 20 bytes as address (Field representation)
+    let mut pub_key_trimmed: [u8; 64] = [0; 64];
+    for i in 0..64 {
+        pub_key_trimmed[i] = public_key_bytes[i + 1];
+    }
+    let hash = keccak256([pub_key_trimmed]);
     let mut address = Field::from(0);
     for i in 0..20 {
         let byte = (hash >> ((31 - i) * 8)) & 0xFF;
@@ -45,6 +49,7 @@ fn derive_address(private_key: Field) -> Field {
 
 fn validate_private_key(private_key: Field) {
     assert(private_key != Field::from(0));
+    assert(private_key < SECP256K1_ORDER);
 }
 
 // Computes nullifier using Keccak256 to prevent double-claiming

@@ -45,8 +45,10 @@ contract Airdrop is ReentrancyGuard {
     error MaxClaimsExceeded();
     error InvalidTimelock();
     error InvalidMaxClaims();
+    error OperationAlreadyCancelled();
 
     address public owner;
+    address public pendingOwner;
     IERC20 public token;
     IUltraVerifier public verifier;
     bytes32 public merkleRoot;
@@ -71,6 +73,8 @@ contract Airdrop is ReentrancyGuard {
     event MaxClaimsSet(uint256 maxClaims);
     event TimelockScheduled(bytes32 indexed operationHash, uint256 executeAfter);
     event OperationExecuted(bytes32 indexed operationHash);
+    event OperationCancelled(bytes32 indexed operationHash);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     constructor(address _token, address _verifier, bytes32 _merkleRoot, uint256 _maxClaims) {
         if (_token == address(0)) revert InvalidRecipient();
@@ -96,16 +100,33 @@ contract Airdrop is ReentrancyGuard {
     }
 
     function _hashOperation(bytes memory data) internal pure returns (bytes32) {
-        return keccak256(data);
+        return keccak256(abi.encode(data));
+    }
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        if (newOwner == address(0)) revert InvalidRecipient();
+        pendingOwner = newOwner;
+    }
+
+    function acceptOwnership() external {
+        if (msg.sender != pendingOwner) revert NotOwner();
+        emit OwnershipTransferred(owner, pendingOwner);
+        owner = pendingOwner;
+        delete pendingOwner;
+    }
+
+    function cancelOperation(bytes32 operationHash) external onlyOwner {
+        if (executedOperations[operationHash]) revert InvalidTimelock();
+        if (timelockSchedule[operationHash] == 0) revert InvalidTimelock();
+        delete timelockSchedule[operationHash];
+        emit OperationCancelled(operationHash);
     }
 
     function claim(uint256[] calldata proof, bytes32 nullifier, address recipient) external nonReentrant {
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
         if (recipient == address(0)) revert InvalidRecipient();
 
-        unchecked {
-            if (totalClaimed + CLAIM_AMOUNT > maxClaims * CLAIM_AMOUNT) revert MaxClaimsExceeded();
-        }
+        if (totalClaimed / CLAIM_AMOUNT >= maxClaims) revert MaxClaimsExceeded();
 
         uint256[] memory publicInputs = new uint256[](3);
         publicInputs[0] = uint256(merkleRoot);

@@ -64,11 +64,12 @@ struct ClaimOutput {
 /// # Returns
 /// 32-byte nullifier hash
 pub fn compute_nullifier(private_key_bytes: &[u8]) -> Result<[u8; 32]> {
-    // Domain separator from circuit: 0xa1b2c3d4
     let domain_separator: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
+    let mut domain_padded = [0u8; 32];
+    domain_padded[28..32].copy_from_slice(&domain_separator);
     let mut hasher = Keccak256::new();
     hasher.update(private_key_bytes);
-    hasher.update(domain_separator);
+    hasher.update(&domain_padded);
     let result = hasher.finalize();
     Ok(result.into())
 }
@@ -104,6 +105,8 @@ fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
     Ok(map)
 }
 
+const MAX_TREE_SIZE: usize = 100_000_000;
+
 fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
     let file = File::open(path).context("Failed to open Merkle tree file")?;
     let reader = BufReader::new(file);
@@ -117,6 +120,13 @@ fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
         if parts.len() >= 3 {
             let level: usize = parts[0].parse().context("Invalid level format")?;
             let index: usize = parts[1].parse().context("Invalid index format")?;
+            if index > MAX_TREE_SIZE {
+                anyhow::bail!(
+                    "Tree index {} exceeds maximum allowed {}",
+                    index,
+                    MAX_TREE_SIZE
+                );
+            }
             let hash_str = if parts[2].starts_with("0x") {
                 &parts[2][2..]
             } else {
@@ -189,15 +199,17 @@ fn main() -> Result<()> {
     println!("Loading Merkle tree...");
     let tree = load_merkle_tree(&cli.tree).context("Failed to load Merkle tree")?;
 
-    let tree_root = tree.last().and_then(|level| level.first()).copied();
-    if let Some(root) = tree_root {
-        if root != merkle_root {
-            anyhow::bail!(
-                "Merkle root mismatch: tree root {} does not match provided root {}",
-                hex_encode(root),
-                hex_encode(merkle_root)
-            );
-        }
+    let tree_root = tree
+        .last()
+        .and_then(|level| level.first())
+        .copied()
+        .context("Invalid tree structure: no root found")?;
+    if tree_root != merkle_root {
+        anyhow::bail!(
+            "Merkle root mismatch: tree root {} does not match provided root {}",
+            hex_encode(tree_root),
+            hex_encode(merkle_root)
+        );
     }
 
     println!("Loading index map...");
