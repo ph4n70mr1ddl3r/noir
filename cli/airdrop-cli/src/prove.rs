@@ -135,6 +135,23 @@ fn generate_noir_proof(
     );
 }
 
+fn read_private_key(key_opt: Option<&String>) -> Result<[u8; 32]> {
+    let key_str = match key_opt {
+        Some(k) if k == "-" => {
+            let mut buffer = String::new();
+            std::io::stdin()
+                .read_line(&mut buffer)
+                .context("Failed to read private key from stdin")?;
+            let trimmed = buffer.trim().to_string();
+            buffer.zeroize();
+            trimmed
+        }
+        Some(k) => k.clone(),
+        None => anyhow::bail!("Private key is required for proof generation"),
+    };
+    parse_private_key(&key_str)
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -156,41 +173,7 @@ fn main() -> Result<()> {
     validate_hex_32_bytes(&claim.merkle_root, "merkle_root")?;
     validate_hex_32_bytes(&claim.nullifier, "nullifier")?;
 
-    #[cfg(not(feature = "mock-proofs"))]
-    let mut private_key_bytes: [u8; 32] = {
-        let key_str = match cli.private_key {
-            Some(ref k) if k == "-" => {
-                let mut buffer = String::new();
-                std::io::stdin()
-                    .read_line(&mut buffer)
-                    .context("Failed to read private key from stdin")?;
-                let trimmed = buffer.trim().to_string();
-                buffer.zeroize();
-                trimmed
-            }
-            Some(k) => k,
-            None => anyhow::bail!("Private key is required for real proof generation"),
-        };
-        parse_private_key(&key_str)?
-    };
-
-    #[cfg(feature = "mock-proofs")]
-    let mut private_key_bytes: [u8; 32] = {
-        let key_str = match cli.private_key {
-            Some(ref k) if k == "-" => {
-                let mut buffer = String::new();
-                std::io::stdin()
-                    .read_line(&mut buffer)
-                    .context("Failed to read private key from stdin")?;
-                let trimmed = buffer.trim().to_string();
-                buffer.zeroize();
-                trimmed
-            }
-            Some(ref k) => k.clone(),
-            None => anyhow::bail!("Private key is required even for mock proofs"),
-        };
-        parse_private_key(&key_str)?
-    };
+    let mut private_key_bytes = read_private_key(cli.private_key.as_ref())?;
 
     println!("Generating Noir proof...");
     let proof_output = generate_noir_proof(&claim, &private_key_bytes, &cli.circuit)?;

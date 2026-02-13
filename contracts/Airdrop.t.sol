@@ -544,6 +544,67 @@ contract AirdropTest is Test {
         airdrop.updateRoot(newRoot);
         vm.stopPrank();
     }
+
+    function testFuzz_ClaimWithValidProof(bytes32 nullifier, address recipient) public {
+        vm.assume(recipient != address(0));
+        vm.assume(nullifier != bytes32(0));
+        verifier.setVerify(true);
+
+        vm.prank(user);
+        airdrop.claim(_mockProof(), nullifier, recipient);
+
+        assertTrue(airdrop.isNullifierUsed(nullifier));
+        assertEq(token.balanceOf(recipient), CLAIM_AMOUNT);
+    }
+
+    function testFuzz_ClaimRejectsZeroRecipient(bytes32 nullifier) public {
+        vm.assume(nullifier != bytes32(0));
+        verifier.setVerify(true);
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.InvalidRecipient.selector);
+        airdrop.claim(_mockProof(), nullifier, address(0));
+    }
+
+    function testFuzz_OwnershipTransfer(address newOwner) public {
+        vm.assume(newOwner != address(0));
+        vm.assume(newOwner != owner);
+
+        vm.prank(owner);
+        airdrop.transferOwnership(newOwner);
+        assertEq(airdrop.pendingOwner(), newOwner);
+
+        vm.prank(newOwner);
+        airdrop.acceptOwnership();
+        assertEq(airdrop.owner(), newOwner);
+    }
+
+    function testFuzz_ScheduleAndExecuteRootUpdate(bytes32 newRoot) public {
+        vm.assume(newRoot != bytes32(0));
+        vm.assume(newRoot != merkleRoot);
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.updateRoot(newRoot);
+        assertEq(airdrop.merkleRoot(), newRoot);
+        vm.stopPrank();
+    }
+
+    function testFuzz_TimelockPreventsEarlyExecution(bytes32 newRoot, uint256 timeSkip) public {
+        vm.assume(newRoot != bytes32(0));
+        vm.assume(timeSkip < 2 days);
+        vm.assume(timeSkip > 0);
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        vm.warp(block.timestamp + timeSkip);
+        vm.expectRevert(Airdrop.TimelockNotExpired.selector);
+        airdrop.updateRoot(newRoot);
+        vm.stopPrank();
+    }
 }
 
 contract ReentrancyToken is IERC20 {

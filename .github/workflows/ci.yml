@@ -60,6 +60,18 @@ jobs:
         with:
           path: cli/airdrop-cli/target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('cli/airdrop-cli/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+
+      - name: Cache Foundry
+        uses: actions/cache@v4
+        with:
+          path: |
+            out
+            cache
+          key: ${{ runner.os }}-foundry-${{ hashFiles('contracts/**/*.sol') }}
+          restore-keys: |
+            ${{ runner.os }}-foundry-
 
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
