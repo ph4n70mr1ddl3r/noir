@@ -332,6 +332,64 @@ contract AirdropTest is Test {
         vm.stopPrank();
     }
 
+    function testBatchCancelOperations() public {
+        bytes32 root1 = bytes32(uint256(789));
+        bytes32 root2 = bytes32(uint256(790));
+        bytes32 root3 = bytes32(uint256(791));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(root1);
+        airdrop.scheduleUpdateRoot(root2);
+        airdrop.scheduleUpdateRoot(root3);
+
+        bytes32 hash1 = keccak256(abi.encode("updateRoot", root1));
+        bytes32 hash2 = keccak256(abi.encode("updateRoot", root2));
+        bytes32 hash3 = keccak256(abi.encode("updateRoot", root3));
+
+        assertGt(airdrop.timelockSchedule(hash1), 0);
+        assertGt(airdrop.timelockSchedule(hash2), 0);
+        assertGt(airdrop.timelockSchedule(hash3), 0);
+
+        bytes32[] memory hashes = new bytes32[](3);
+        hashes[0] = hash1;
+        hashes[1] = hash2;
+        hashes[2] = hash3;
+
+        airdrop.batchCancelOperations(hashes);
+
+        assertEq(airdrop.timelockSchedule(hash1), 0);
+        assertEq(airdrop.timelockSchedule(hash2), 0);
+        assertEq(airdrop.timelockSchedule(hash3), 0);
+        assertTrue(airdrop.cancelledOperations(hash1));
+        assertTrue(airdrop.cancelledOperations(hash2));
+        assertTrue(airdrop.cancelledOperations(hash3));
+        vm.stopPrank();
+    }
+
+    function testBatchCancelOperationsEmptyBatch() public {
+        bytes32[] memory emptyHashes = new bytes32[](0);
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.EmptyBatch.selector);
+        airdrop.batchCancelOperations(emptyHashes);
+    }
+
+    function testBatchCancelOperationsNotScheduled() public {
+        vm.startPrank(owner);
+        bytes32 root1 = bytes32(uint256(789));
+        airdrop.scheduleUpdateRoot(root1);
+
+        bytes32 hash1 = keccak256(abi.encode("updateRoot", root1));
+        bytes32 fakeHash = bytes32(uint256(999));
+
+        bytes32[] memory hashes = new bytes32[](2);
+        hashes[0] = hash1;
+        hashes[1] = fakeHash;
+
+        vm.expectRevert(Airdrop.OperationNotScheduled.selector);
+        airdrop.batchCancelOperations(hashes);
+        vm.stopPrank();
+    }
+
     function testWithdrawTokens() public {
         uint256 withdrawAmount = 100 * 10 ** 18;
 

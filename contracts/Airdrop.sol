@@ -77,6 +77,7 @@ contract Airdrop is ReentrancyGuard {
     error InsufficientBalanceForWithdraw();
     error ClaimToContract();
     error InvalidNullifier();
+    error EmptyBatch();
 
     address public owner;
     address public pendingOwner;
@@ -272,7 +273,9 @@ contract Airdrop is ReentrancyGuard {
         if (proof.length == 0) revert EmptyProof();
 
         if (claimCount >= maxClaims) revert MaxClaimsExceeded();
-        if (token.balanceOf(address(this)) < CLAIM_AMOUNT) revert InsufficientBalance();
+        
+        IERC20 token_ = token;
+        if (token_.balanceOf(address(this)) < CLAIM_AMOUNT) revert InsufficientBalance();
 
         uint256[] memory publicInputs = new uint256[](3);
         publicInputs[0] = uint256(merkleRoot);
@@ -288,7 +291,7 @@ contract Airdrop is ReentrancyGuard {
             ++claimCount;
         }
 
-        (bool success, bytes memory data) = address(token)
+        (bool success, bytes memory data) = address(token_)
             .call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
         if (!success) revert TransferFailed();
         if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
@@ -378,6 +381,27 @@ contract Airdrop is ReentrancyGuard {
         cancelledOperations[operationHash] = true;
         delete timelockSchedule[operationHash];
         emit OperationCancelled(operationHash);
+    }
+
+    /// @notice Cancels multiple scheduled timelocked operations in a single transaction
+    /// @param operationHashes Array of operation hashes to cancel
+    /// @dev Only callable by owner. More gas-efficient than calling cancelOperation multiple times.
+    ///      Reverts if any operation cannot be cancelled (already executed, already cancelled, or not scheduled).
+    function batchCancelOperations(bytes32[] calldata operationHashes) external onlyOwner {
+        if (operationHashes.length == 0) revert EmptyBatch();
+        
+        for (uint256 i = 0; i < operationHashes.length;) {
+            bytes32 opHash = operationHashes[i];
+            if (executedOperations[opHash]) revert OperationAlreadyExecuted();
+            if (cancelledOperations[opHash]) revert OperationAlreadyCancelled();
+            if (timelockSchedule[opHash] == 0) revert OperationNotScheduled();
+            cancelledOperations[opHash] = true;
+            delete timelockSchedule[opHash];
+            emit OperationCancelled(opHash);
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /// @notice Executes a timelocked operation after delay has passed

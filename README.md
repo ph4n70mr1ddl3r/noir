@@ -37,7 +37,7 @@ noir/
 
 ## Prerequisites
 
-- Rust (1.70+)
+- Rust (1.75+)
 - Node.js (for Noir toolchain)
 - Foundry/Hardhat (for contract deployment)
 - Noir compiler (`nargo`)
