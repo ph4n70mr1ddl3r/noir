@@ -8,7 +8,7 @@ use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use zeroize::Zeroize;
 
 use airdrop_cli::{
@@ -85,7 +85,19 @@ pub fn compute_nullifier(private_key_bytes: &[u8; 32]) -> Result<[u8; 32]> {
     Ok(result.into())
 }
 
-fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
+/// Loads the index map from a file.
+///
+/// The file format is: `0xADDRESS:INDEX` per line.
+///
+/// # Arguments
+/// * `path` - Path to the index map file
+///
+/// # Returns
+/// A HashMap mapping 20-byte addresses to their leaf indices
+///
+/// # Errors
+/// Returns an error if the file doesn't exist, is empty, or has invalid format
+fn load_index_map(path: &Path) -> Result<HashMap<[u8; 20], usize>> {
     if !path.exists() {
         anyhow::bail!("Index map file does not exist: {:?}", path);
     }
@@ -123,7 +135,21 @@ fn load_index_map(path: &PathBuf) -> Result<HashMap<[u8; 20], usize>> {
 
 const MAX_TREE_SIZE: usize = 100_000_000;
 
-fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
+/// Loads and validates a Merkle tree from a file.
+///
+/// The file format is: `LEVEL:INDEX:0xHASH` per line.
+/// Validates tree integrity by recomputing parent hashes.
+///
+/// # Arguments
+/// * `path` - Path to the Merkle tree file
+///
+/// # Returns
+/// A vector of levels, where each level is a vector of 32-byte hashes
+///
+/// # Errors
+/// Returns an error if the file doesn't exist, is empty, has invalid format,
+/// or fails tree integrity validation
+fn load_merkle_tree(path: &Path) -> Result<Vec<Vec<[u8; 32]>>> {
     if !path.exists() {
         anyhow::bail!("Merkle tree file does not exist: {:?}", path);
     }
@@ -235,6 +261,15 @@ fn load_merkle_tree(path: &PathBuf) -> Result<Vec<Vec<[u8; 32]>>> {
     Ok(tree)
 }
 
+/// Derives an Ethereum address from an ECDSA signing key.
+///
+/// Uses standard Ethereum address derivation: last 20 bytes of Keccak256(uncompressed public key).
+///
+/// # Arguments
+/// * `signing_key` - The secp256k1 signing key
+///
+/// # Returns
+/// 20-byte Ethereum address
 fn private_key_to_address(signing_key: &SigningKey) -> Result<[u8; 20]> {
     let public_key = signing_key.verifying_key();
     let encoded = public_key.to_encoded_point(false);
@@ -245,6 +280,15 @@ fn private_key_to_address(signing_key: &SigningKey) -> Result<[u8; 20]> {
     Ok(address)
 }
 
+/// Validates that a private key is within the valid range for secp256k1.
+///
+/// The key must be non-zero and less than the curve order n.
+///
+/// # Arguments
+/// * `key_bytes` - 32-byte private key (big-endian)
+///
+/// # Errors
+/// Returns an error if the key is zero or >= curve order
 fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
     if key_bytes == &[0u8; 32] {
         anyhow::bail!("Private key cannot be zero");
