@@ -138,14 +138,14 @@ contract AirdropTest is Test {
         verifier.setVerify(true);
 
         for (uint256 i = 0; i < MAX_CLAIMS; i++) {
-            bytes32 claimNullifier = bytes32(i);
+            bytes32 claimNullifier = bytes32(uint256(i + 1));
             // forge-lint: disable-next-line(unsafe-typecast)
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
             airdrop.claim(_mockProof(), claimNullifier, recipient);
         }
 
-        bytes32 finalNullifier = bytes32(MAX_CLAIMS + 1);
+        bytes32 finalNullifier = bytes32(uint256(MAX_CLAIMS + 2));
         verifier.setVerify(true);
         vm.prank(user);
         vm.expectRevert(Airdrop.MaxClaimsExceeded.selector);
@@ -156,20 +156,20 @@ contract AirdropTest is Test {
         verifier.setVerify(true);
 
         for (uint256 i = 0; i < MAX_CLAIMS - 1; i++) {
-            bytes32 claimNullifier = bytes32(i);
+            bytes32 claimNullifier = bytes32(uint256(i + 1));
             // forge-lint: disable-next-line(unsafe-typecast)
             address claimRecipient = address(uint160(i + 100));
             vm.prank(claimRecipient);
             airdrop.claim(_mockProof(), claimNullifier, claimRecipient);
         }
 
-        bytes32 nullifier = bytes32(MAX_CLAIMS - 1);
+        bytes32 nullifier = bytes32(uint256(MAX_CLAIMS));
         // forge-lint: disable-next-line(unsafe-typecast)
         address boundaryRecipient = address(uint160(MAX_CLAIMS - 1 + 100));
         vm.prank(boundaryRecipient);
         airdrop.claim(_mockProof(), nullifier, boundaryRecipient);
 
-        bytes32 finalNullifier = bytes32(MAX_CLAIMS + 100);
+        bytes32 finalNullifier = bytes32(uint256(MAX_CLAIMS + 101));
         vm.prank(user);
         vm.expectRevert(Airdrop.MaxClaimsExceeded.selector);
         airdrop.claim(_mockProof(), finalNullifier, user);
@@ -250,7 +250,7 @@ contract AirdropTest is Test {
     function testScheduleSetMaxClaimsBelowCurrentReverts() public {
         verifier.setVerify(true);
         for (uint256 i = 0; i < 5; i++) {
-            bytes32 claimNullifier = bytes32(i);
+            bytes32 claimNullifier = bytes32(uint256(i + 1));
             // forge-lint: disable-next-line(unsafe-typecast)
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
@@ -456,6 +456,13 @@ contract AirdropTest is Test {
         airdrop.claim(new uint256[](0), nullifier, user);
     }
 
+    function testZeroNullifier() public {
+        verifier.setVerify(true);
+        vm.prank(user);
+        vm.expectRevert(Airdrop.InvalidNullifier.selector);
+        airdrop.claim(_mockProof(), bytes32(0), user);
+    }
+
     function testScheduleOverwrite() public {
         bytes32 newRoot = bytes32(uint256(789));
         vm.startPrank(owner);
@@ -468,7 +475,7 @@ contract AirdropTest is Test {
     function testMaxClaimsBelowCurrent() public {
         verifier.setVerify(true);
         for (uint256 i = 0; i < 5; i++) {
-            bytes32 claimNullifier = bytes32(i);
+            bytes32 claimNullifier = bytes32(uint256(i + 1));
             // forge-lint: disable-next-line(unsafe-typecast)
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
@@ -723,7 +730,7 @@ contract AirdropTest is Test {
 
         verifier.setVerify(true);
         for (uint256 i = 0; i < 5; i++) {
-            bytes32 claimNullifier = bytes32(i);
+            bytes32 claimNullifier = bytes32(uint256(i + 1));
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
             airdrop.claim(_mockProof(), claimNullifier, recipient);

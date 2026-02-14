@@ -64,6 +64,7 @@ contract Airdrop is ReentrancyGuard {
     error UnknownFunction();
     error InsufficientBalanceForWithdraw();
     error ClaimToContract();
+    error InvalidNullifier();
 
     address public owner;
     address public pendingOwner;
@@ -227,6 +228,7 @@ contract Airdrop is ReentrancyGuard {
         nonReentrant
         whenNotPaused
     {
+        if (nullifier == bytes32(0)) revert InvalidNullifier();
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
         if (recipient == address(0)) revert InvalidRecipient();
         if (recipient == address(this)) revert ClaimToContract();

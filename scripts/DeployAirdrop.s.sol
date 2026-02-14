@@ -34,6 +34,12 @@ contract DeployAirdrop is Script {
 
         vm.stopBroadcast();
 
-        console.log("Airdrop contract deployed at:", address(airdrop));
+        console.log("=== Deployment Summary ===");
+        console.log("Airdrop contract:", address(airdrop));
+        console.log("Token address:", tokenAddress);
+        console.log("Verifier address:", verifierAddress);
+        console.log("Merkle root:", vm.toString(merkleRoot));
+        console.log("Max claims:", maxClaims);
+        console.log("Deployer:", msg.sender);
     }
 }

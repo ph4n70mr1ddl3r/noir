@@ -363,6 +363,9 @@ fn main() -> Result<()> {
 
     println!("Parsing recipient address...");
     let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;
+    if recipient == [0u8; 20] {
+        anyhow::bail!("Recipient address cannot be zero");
+    }
 
     let claim = ClaimOutput {
         merkle_root: hex_encode(merkle_root),

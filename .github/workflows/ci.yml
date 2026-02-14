@@ -29,8 +29,14 @@ jobs:
       - name: Run Forge tests
         run: forge test -vvv
 
-      - name: Run Forge snapshot check
-        run: forge snapshot --check || true
+      - name: Check gas snapshot
+        run: |
+          if [ -f ".gas-snapshot" ]; then
+            forge snapshot --check
+          else
+            echo "No .gas-snapshot file found, generating one..."
+            forge snapshot
+          fi
 
   rust:
     name: Rust Tests
