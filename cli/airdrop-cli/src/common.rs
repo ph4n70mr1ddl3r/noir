@@ -89,6 +89,7 @@ pub fn keccak256_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
 ///
 /// # Returns
 /// Hex string with "0x" prefix
+#[must_use]
 pub fn hex_encode<T: AsRef<[u8]>>(data: T) -> String {
     format!("0x{}", hex::encode(data.as_ref()))
 }
