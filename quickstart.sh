@@ -5,7 +5,19 @@ set -e
 echo "=== Noir ZK Airdrop Quickstart ==="
 echo ""
 
-echo "Step 1: Installing Noir toolchain..."
+check_command() {
+    if ! command -v "$1" &> /dev/null; then
+        echo "Error: $1 is required but not installed."
+        echo "Please install $1 and try again."
+        exit 1
+    fi
+}
+
+echo "Step 1: Checking prerequisites..."
+check_command "curl"
+check_command "cargo"
+
+echo "Step 2: Installing Noir toolchain..."
 if ! command -v nargo &> /dev/null; then
     curl -L https://raw.githubusercontent.com/noir-lang/noir/main/install_nargo.sh | bash
     export PATH="$HOME/.nargo/bin:$PATH"
@@ -14,19 +26,19 @@ else
 fi
 
 echo ""
-echo "Step 2: Compiling Noir circuit..."
+echo "Step 3: Compiling Noir circuit..."
 cd circuits/airdrop
 nargo compile
 echo "Noir circuit compiled successfully"
 
 echo ""
-echo "Step 3: Building Rust CLI tools..."
+echo "Step 4: Building Rust CLI tools..."
 cd ../../cli/airdrop-cli
 cargo build --release
 echo "CLI tools built successfully"
 
 echo ""
-echo "Step 4: Building sample Merkle tree..."
+echo "Step 5: Building sample Merkle tree..."
 cd ../..
 ./cli/airdrop-cli/target/release/build-tree \
   --input sample_accounts.txt \

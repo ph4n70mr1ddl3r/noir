@@ -369,8 +369,7 @@ pub fn run(mut cli: Cli) -> Result<()> {
 
     if recipient != claimer_address {
         eprintln!(
-            "WARNING: Recipient address ({}) differs from claimer address ({}). \
-             Tokens will be sent to the recipient, not to the address derived from your private key.",
+            "WARNING: Recipient address ({}) differs from claimer address ({}). Tokens will be sent to the recipient, not to the address derived from your private key.",
             hex_encode(recipient),
             hex_encode(claimer_address)
         );

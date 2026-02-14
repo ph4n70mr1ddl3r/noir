@@ -5,6 +5,9 @@ edition = "2021"
 rust-version = "1.75"
 license = "MIT"
 description = "CLI tools for Noir ZK airdrop system"
+readme = "README.md"
+keywords = ["noir", "zk", "airdrop", "ethereum", "merkle-tree"]
+categories = ["command-line-utilities", "cryptography::cryptocurrencies"]
 
 [features]
 default = []
