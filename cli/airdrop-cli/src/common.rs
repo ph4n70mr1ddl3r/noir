@@ -241,9 +241,14 @@ pub fn get_merkle_proof(
 /// to prevent unauthorized access before the atomic rename.
 pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Result<()> {
     use std::io::Write;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     let path = path.as_ref();
-    let temp_path = path.with_extension(format!("{}.tmp", std::process::id()));
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let temp_path = path.with_extension(format!("{}.{}.tmp", std::process::id(), timestamp));
 
     #[cfg(unix)]
     {

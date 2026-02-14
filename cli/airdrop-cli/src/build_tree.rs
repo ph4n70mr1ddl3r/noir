@@ -139,8 +139,10 @@ pub fn run(cli: Cli) -> Result<()> {
     let root_content = format!("{}\n", hex_encode(root));
     write_file_atomic(&cli.root_output, &root_content).context("Failed to write root file")?;
 
+    let mut index_entries: Vec<(&[u8; 20], &usize)> = index_map.iter().collect();
+    index_entries.sort_by_key(|(_, &idx)| idx);
     let mut index_lines: Vec<String> = Vec::new();
-    for (address, index) in &index_map {
+    for (address, index) in index_entries {
         index_lines.push(format!("{}:{}", hex_encode(address), index));
     }
     let index_content = format!("{}\n", index_lines.join("\n"));

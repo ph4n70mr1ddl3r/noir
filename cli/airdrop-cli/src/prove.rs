@@ -92,6 +92,11 @@ fn validate_recipient_address(value: &str) -> Result<[u8; 20]> {
     Ok(bytes)
 }
 
+const SECP256K1_ORDER: [u8; 32] = [
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
+    0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36, 0x41, 0x41,
+];
+
 #[inline]
 fn parse_private_key(key_str: &str) -> Result<[u8; 32]> {
     let cleaned = key_str.trim().strip_prefix("0x").unwrap_or(key_str.trim());
@@ -108,7 +113,30 @@ fn parse_private_key(key_str: &str) -> Result<[u8; 32]> {
     let mut private_key = [0u8; 32];
     private_key.copy_from_slice(&key_bytes);
     key_bytes.zeroize();
+
+    validate_private_key_range(&private_key)
+        .context("Invalid private key: must be within secp256k1 curve order")?;
+
     Ok(private_key)
+}
+
+#[inline]
+fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
+    if key_bytes == &[0u8; 32] {
+        anyhow::bail!("Private key cannot be zero");
+    }
+
+    for i in 0..32 {
+        match key_bytes[i].cmp(&SECP256K1_ORDER[i]) {
+            std::cmp::Ordering::Less => return Ok(()),
+            std::cmp::Ordering::Greater => {
+                anyhow::bail!("Private key must be less than secp256k1 curve order");
+            }
+            std::cmp::Ordering::Equal => continue,
+        }
+    }
+
+    anyhow::bail!("Private key must be less than secp256k1 curve order");
 }
 
 #[cfg(feature = "mock-proofs")]
@@ -275,6 +303,27 @@ mod tests {
     #[test]
     fn test_parse_private_key_valid_no_prefix() {
         let key = "0000000000000000000000000000000000000000000000000000000000000001";
+        let result = parse_private_key(key);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_private_key_zero_rejected() {
+        let key = "0x0000000000000000000000000000000000000000000000000000000000000000";
+        let result = parse_private_key(key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_private_key_exceeds_order_rejected() {
+        let key = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
+        let result = parse_private_key(key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_private_key_just_below_order() {
+        let key = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140";
         let result = parse_private_key(key);
         assert!(result.is_ok());
     }
