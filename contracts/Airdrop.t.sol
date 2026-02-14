@@ -237,6 +237,35 @@ contract AirdropTest is Test {
         airdrop.scheduleSetMaxClaims(0);
     }
 
+    function testScheduleSetMaxClaimsBelowCurrentReverts() public {
+        verifier.setVerify(true);
+        for (uint256 i = 0; i < 5; i++) {
+            bytes32 claimNullifier = bytes32(i);
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 100));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+        }
+
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.MaxClaimsBelowCurrent.selector);
+        airdrop.scheduleSetMaxClaims(3);
+    }
+
+    function testCancelOperationAlreadyCancelled() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        airdrop.cancelOperation(operationHash);
+
+        vm.expectRevert(Airdrop.OperationNotScheduled.selector);
+        airdrop.cancelOperation(operationHash);
+        vm.stopPrank();
+    }
+
     function testWithdrawTokens() public {
         uint256 withdrawAmount = 100 * 10 ** 18;
 
@@ -404,10 +433,8 @@ contract AirdropTest is Test {
         }
 
         vm.startPrank(owner);
-        airdrop.scheduleSetMaxClaims(3);
-        vm.warp(block.timestamp + 2 days + 1);
         vm.expectRevert(Airdrop.MaxClaimsBelowCurrent.selector);
-        airdrop.setMaxClaims(3);
+        airdrop.scheduleSetMaxClaims(3);
         vm.stopPrank();
     }
 

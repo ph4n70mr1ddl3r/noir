@@ -301,6 +301,7 @@ contract Airdrop is ReentrancyGuard {
 
     function scheduleSetMaxClaims(uint256 _maxClaims) external onlyOwner {
         if (_maxClaims == 0) revert InvalidMaxClaims();
+        if (_maxClaims < claimCount) revert MaxClaimsBelowCurrent();
         bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
         if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
