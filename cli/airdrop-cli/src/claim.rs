@@ -13,13 +13,8 @@ use zeroize::Zeroize;
 
 use airdrop_cli::{
     get_merkle_proof, hex_encode, keccak256_hash, parse_address, validate_merkle_root,
-    write_file_atomic, DOMAIN_SEPARATOR_BYTES, MERKLE_DEPTH,
+    write_file_atomic, DOMAIN_SEPARATOR_BYTES, MERKLE_DEPTH, SECP256K1_ORDER,
 };
-
-const SECP256K1_ORDER: [u8; 32] = [
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
-    0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36, 0x41, 0x41,
-];
 
 #[derive(Parser, Debug)]
 #[command(name = "claim")]
@@ -73,6 +68,7 @@ struct ClaimOutput {
 ///
 /// # Returns
 /// 32-byte nullifier hash
+#[must_use]
 pub fn compute_nullifier(private_key_bytes: &[u8; 32]) -> Result<[u8; 32]> {
     let mut domain_padded = [0u8; 32];
     domain_padded[28..32].copy_from_slice(&DOMAIN_SEPARATOR_BYTES);

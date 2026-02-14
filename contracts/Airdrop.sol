@@ -405,10 +405,7 @@ contract Airdrop is ReentrancyGuard {
     /// @notice Returns the number of remaining claims allowed
     /// @return The number of claims that can still be made
     function remainingClaims() external view returns (uint256) {
-        if (maxClaims <= claimCount) {
-            return 0;
-        }
-        return maxClaims - claimCount;
+        return maxClaims > claimCount ? maxClaims - claimCount : 0;
     }
 
     /// @notice Returns comprehensive claim-related information

@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use zeroize::Zeroize;
 
-use airdrop_cli::write_file_atomic;
+use airdrop_cli::{write_file_atomic, SECP256K1_ORDER};
 
 #[derive(Parser, Debug)]
 #[command(name = "prove")]
@@ -91,11 +91,6 @@ fn validate_recipient_address(value: &str) -> Result<[u8; 20]> {
     }
     Ok(bytes)
 }
-
-const SECP256K1_ORDER: [u8; 32] = [
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
-    0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36, 0x41, 0x41,
-];
 
 #[inline]
 fn parse_private_key(key_str: &str) -> Result<[u8; 32]> {
