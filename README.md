@@ -148,7 +148,7 @@ The generated `claim.json` contains:
   "recipient": "0x...",
   "nullifier": "0x...",
   "merkle_proof": ["0x...", "0x...", ...],
-  "private_key_field": "0x...",
+  "merkle_indices": [true, false, ...],
   "leaf_index": 12345,
   "claimer_address": "0x..."
 }

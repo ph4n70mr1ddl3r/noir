@@ -651,7 +651,27 @@ contract AirdropTest is Test {
         vm.stopPrank();
     }
 
-    function testRejectsEthTransfers() public {
+    function testRenounceOwnership() public {
+        vm.startPrank(owner);
+        airdrop.scheduleRenounceOwnership();
+
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.renounceOwnership();
+
+        assertEq(airdrop.owner(), address(0));
+        vm.stopPrank();
+    }
+
+    function testRenounceOwnershipTimelock() public {
+        vm.startPrank(owner);
+        airdrop.scheduleRenounceOwnership();
+
+        vm.expectRevert(Airdrop.TimelockNotExpired.selector);
+        airdrop.renounceOwnership();
+        vm.stopPrank();
+    }
+
+    function testFuzz_RejectsEthTransfers() public {
         (bool success,) = address(airdrop).call{ value: 1 ether }("");
         assertFalse(success);
     }

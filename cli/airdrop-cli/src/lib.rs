@@ -3,6 +3,8 @@
 //! This crate provides common utilities for building Merkle trees,
 //! generating claims, and creating ZK proofs for the airdrop system.
 
+#![forbid(unsafe_code)]
+
 pub mod common;
 
 pub use common::{

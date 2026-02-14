@@ -170,6 +170,25 @@ contract Airdrop is ReentrancyGuard {
         delete pendingOwner;
     }
 
+    /// @notice Renounces ownership permanently
+    /// @dev Sets owner to address(0). This is irreversible.
+    /// Only callable via timelock for safety.
+    function renounceOwnership() external onlyOwner {
+        bytes32 operationHash = _hashOperation(abi.encode("renounceOwnership"));
+        _executeTimelockedOperation(operationHash);
+        emit OwnershipTransferred(owner, address(0));
+        owner = address(0);
+        delete pendingOwner;
+    }
+
+    /// @notice Schedules ownership renunciation
+    function scheduleRenounceOwnership() external onlyOwner {
+        bytes32 operationHash = _hashOperation(abi.encode("renounceOwnership"));
+        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
+        timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
+        emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
+    }
+
     function cancelOperation(bytes32 operationHash) external onlyOwner {
         if (executedOperations[operationHash]) revert OperationAlreadyExecuted();
         if (cancelledOperations[operationHash]) revert OperationAlreadyCancelled();
