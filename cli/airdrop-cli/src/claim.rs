@@ -22,6 +22,7 @@ const SECP256K1_ORDER: [u8; 32] = [
 #[derive(Parser)]
 #[command(name = "claim")]
 #[command(about = "Generate airdrop claim proof", long_about = None)]
+#[command(version)]
 struct Cli {
     /// Path to Merkle tree file
     #[arg(short = 't', long)]

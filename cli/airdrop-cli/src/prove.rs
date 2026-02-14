@@ -10,6 +10,7 @@ use airdrop_cli::write_file_atomic;
 #[derive(Parser)]
 #[command(name = "prove")]
 #[command(about = "Generate Noir proof from claim JSON", long_about = None)]
+#[command(version)]
 struct Cli {
     /// Input claim JSON file
     #[arg(short, long)]

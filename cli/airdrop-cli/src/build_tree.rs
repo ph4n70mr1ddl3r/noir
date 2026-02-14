@@ -15,6 +15,7 @@ type MerkleTree = Vec<MerkleTreeLevel>;
 #[derive(Parser)]
 #[command(name = "build-tree")]
 #[command(about = "Build Merkle tree from qualified accounts", long_about = None)]
+#[command(version)]
 struct Cli {
     /// Input file containing Ethereum addresses (one per line)
     #[arg(short, long)]

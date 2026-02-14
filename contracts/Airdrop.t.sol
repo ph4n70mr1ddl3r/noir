@@ -276,6 +276,39 @@ contract AirdropTest is Test {
         vm.stopPrank();
     }
 
+    function testRescheduleAfterCancel() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        airdrop.cancelOperation(operationHash);
+
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.updateRoot(newRoot);
+        assertEq(airdrop.merkleRoot(), newRoot);
+        vm.stopPrank();
+    }
+
+    function testRescheduleAndCancelAgain() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        airdrop.cancelOperation(operationHash);
+
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        airdrop.cancelOperation(operationHash);
+        assertEq(airdrop.timelockSchedule(operationHash), 0);
+        vm.stopPrank();
+    }
+
     function testWithdrawTokens() public {
         uint256 withdrawAmount = 100 * 10 ** 18;
 
@@ -379,6 +412,8 @@ contract AirdropTest is Test {
         airdrop.transferOwnership(address(0));
     }
 
+    event PendingOwnerSet(address indexed pendingOwner);
+
     function testPendingOwnerSetEvent() public {
         address newOwner = address(0x3);
         vm.prank(owner);
@@ -387,8 +422,6 @@ contract AirdropTest is Test {
         airdrop.transferOwnership(newOwner);
         assertEq(airdrop.pendingOwner(), newOwner);
     }
-
-    event PendingOwnerSet(address indexed pendingOwner);
 
     function testCancelOperation() public {
         bytes32 newRoot = bytes32(uint256(789));
@@ -679,6 +712,29 @@ contract AirdropTest is Test {
     function testFallbackReverts() public {
         (bool success,) = address(airdrop).call(abi.encodeWithSignature("unknownFunction()"));
         assertFalse(success);
+    }
+
+    function testWithdrawTokensBalanceCheckAtExecution() public {
+        uint256 withdrawAmount = MAX_CLAIMS * CLAIM_AMOUNT;
+
+        vm.startPrank(owner);
+        airdrop.scheduleWithdrawTokens(withdrawAmount);
+        vm.stopPrank();
+
+        verifier.setVerify(true);
+        for (uint256 i = 0; i < 5; i++) {
+            bytes32 claimNullifier = bytes32(i);
+            address recipient = address(uint160(i + 100));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+        }
+
+        vm.startPrank(owner);
+        vm.warp(block.timestamp + 2 days + 1);
+
+        vm.expectRevert(Airdrop.InsufficientBalanceForWithdraw.selector);
+        airdrop.withdrawTokens(withdrawAmount);
+        vm.stopPrank();
     }
 }
 

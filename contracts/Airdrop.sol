@@ -184,7 +184,15 @@ contract Airdrop is ReentrancyGuard {
     /// @notice Schedules ownership renunciation
     function scheduleRenounceOwnership() external onlyOwner {
         bytes32 operationHash = _hashOperation(abi.encode("renounceOwnership"));
+        _scheduleOperation(operationHash);
+    }
+
+    /// @notice Schedules a timelocked operation
+    /// @param operationHash The hash of the operation to schedule
+    /// @dev Clears any previous cancellation to allow re-scheduling
+    function _scheduleOperation(bytes32 operationHash) internal {
         if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
+        delete cancelledOperations[operationHash];
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
@@ -295,12 +303,11 @@ contract Airdrop is ReentrancyGuard {
     function scheduleWithdrawTokens(uint256 amount) external onlyOwner {
         if (amount > token.balanceOf(address(this))) revert InsufficientBalanceForWithdraw();
         bytes32 operationHash = _hashOperation(abi.encode("withdrawTokens", amount));
-        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
-        timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
-        emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
+        _scheduleOperation(operationHash);
     }
 
     function _withdrawTokensInternal(uint256 amount) internal {
+        if (amount > token.balanceOf(address(this))) revert InsufficientBalanceForWithdraw();
         (bool success, bytes memory data) =
             address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, owner, amount));
         if (!success) revert TransferFailed();
@@ -311,26 +318,20 @@ contract Airdrop is ReentrancyGuard {
     function scheduleUpdateRoot(bytes32 newRoot) external onlyOwner {
         if (newRoot == bytes32(0)) revert InvalidRoot();
         bytes32 operationHash = _hashOperation(abi.encode("updateRoot", newRoot));
-        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
-        timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
-        emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
+        _scheduleOperation(operationHash);
     }
 
     function scheduleUpdateVerifier(address newVerifier) external onlyOwner {
         if (newVerifier == address(0)) revert InvalidVerifier();
         bytes32 operationHash = _hashOperation(abi.encode("updateVerifier", newVerifier));
-        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
-        timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
-        emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
+        _scheduleOperation(operationHash);
     }
 
     function scheduleSetMaxClaims(uint256 _maxClaims) external onlyOwner {
         if (_maxClaims == 0) revert InvalidMaxClaims();
         if (_maxClaims < claimCount) revert MaxClaimsBelowCurrent();
         bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
-        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
-        timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
-        emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
+        _scheduleOperation(operationHash);
     }
 
     // Helper function to execute timelocked operations
@@ -345,14 +346,21 @@ contract Airdrop is ReentrancyGuard {
         emit OperationExecuted(operationHash);
     }
 
+    /// @notice Checks if a nullifier has already been used
+    /// @param nullifier The nullifier to check
+    /// @return True if the nullifier has been used, false otherwise
     function isNullifierUsed(bytes32 nullifier) external view returns (bool) {
         return usedNullifiers[nullifier];
     }
 
+    /// @notice Returns the current token balance of the contract
+    /// @return The balance of tokens held by the contract
     function claimableBalance() external view returns (uint256) {
         return token.balanceOf(address(this));
     }
 
+    /// @notice Returns the number of remaining claims allowed
+    /// @return The number of claims that can still be made
     function remainingClaims() external view returns (uint256) {
         if (maxClaims <= claimCount) {
             return 0;
