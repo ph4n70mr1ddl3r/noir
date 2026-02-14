@@ -354,6 +354,7 @@ pub fn run(mut cli: Cli) -> Result<()> {
 
     let mut private_key_le_bytes = private_key_bytes;
     private_key_le_bytes.reverse();
+    private_key_bytes.zeroize();
 
     println!("Signing claimer address...");
     let mut message: [u8; 32] = [0u8; 32];
@@ -363,8 +364,6 @@ pub fn run(mut cli: Cli) -> Result<()> {
     let sig_bytes = signature.to_bytes();
     let mut signature_bytes: [u8; 64] = [0u8; 64];
     signature_bytes.copy_from_slice(&sig_bytes);
-
-    private_key_bytes.zeroize();
 
     println!("Looking up address in index map...");
     let leaf_index = index_map
