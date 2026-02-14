@@ -664,6 +664,58 @@ contract AirdropTest is Test {
         assertEq(airdrop.remainingClaims(), 0);
     }
 
+    function testClaimInfo() public view {
+        (
+            address _token,
+            bytes32 _merkleRoot,
+            uint256 _claimAmount,
+            uint256 _totalClaimed,
+            uint256 _claimCount,
+            uint256 _maxClaims,
+            uint256 _remainingClaims,
+            bool _isPaused
+        ) = airdrop.claimInfo();
+
+        assertEq(_token, address(token));
+        assertEq(_merkleRoot, merkleRoot);
+        assertEq(_claimAmount, CLAIM_AMOUNT);
+        assertEq(_totalClaimed, 0);
+        assertEq(_claimCount, 0);
+        assertEq(_maxClaims, MAX_CLAIMS);
+        assertEq(_remainingClaims, MAX_CLAIMS);
+        assertFalse(_isPaused);
+    }
+
+    function testClaimInfoAfterClaims() public {
+        verifier.setVerify(true);
+        for (uint256 i = 0; i < 5; i++) {
+            bytes32 claimNullifier = bytes32(i + 20000);
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 500));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+        }
+
+        (
+            ,
+            ,
+            ,
+            uint256 _totalClaimed,
+            uint256 _claimCount,
+            ,
+            uint256 _remainingClaims,
+            
+        ) = airdrop.claimInfo();
+
+        assertEq(_totalClaimed, 5 * CLAIM_AMOUNT);
+        assertEq(_claimCount, 5);
+        assertEq(_remainingClaims, MAX_CLAIMS - 5);
+    }
+
+    function testDomainSeparator() public view {
+        assertEq(bytes4(airdrop.DOMAIN_SEPARATOR()), bytes4(0xa1b2c3d4));
+    }
+
     function testOperationNotExecutedTwice() public {
         bytes32 newRoot = bytes32(uint256(789));
 

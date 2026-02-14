@@ -37,7 +37,15 @@ contract ReentrancyGuard {
 /// @title Noir ZK Airdrop Contract
 /// @notice Enables private token claims using zero-knowledge proofs
 /// @dev Users prove membership in a Merkle tree without revealing their private key on-chain
+///
+/// Domain Separator: 0xa1b2c3d4 (bytes 28-31 of 32-byte array)
+/// Used in nullifier computation to prevent cross-context replay attacks.
+/// Must match the value in Noir circuit (main.nr) and CLI (common.rs).
 contract Airdrop is ReentrancyGuard {
+    /// @notice Domain separator for nullifier computation (bytes 28-31 of 32-byte array)
+    /// @dev Used to prevent cross-context replay attacks. Must match CLI and circuit.
+    bytes4 public constant DOMAIN_SEPARATOR = 0xa1b2c3d4;
+
     error NullifierAlreadyUsed();
     error InvalidProof();
     error InvalidRoot();
@@ -401,6 +409,35 @@ contract Airdrop is ReentrancyGuard {
             return 0;
         }
         return maxClaims - claimCount;
+    }
+
+    /// @notice Returns comprehensive claim-related information
+    /// @return _token The ERC20 token address
+    /// @return _merkleRoot The current Merkle root
+    /// @return _claimAmount The amount of tokens per claim
+    /// @return _totalClaimed Total tokens claimed so far
+    /// @return _claimCount Number of claims made
+    /// @return _maxClaims Maximum allowed claims
+    /// @return _remainingClaims Remaining claims allowed
+    /// @return _isPaused Whether the contract is paused
+    function claimInfo() external view returns (
+        address _token,
+        bytes32 _merkleRoot,
+        uint256 _claimAmount,
+        uint256 _totalClaimed,
+        uint256 _claimCount,
+        uint256 _maxClaims,
+        uint256 _remainingClaims,
+        bool _isPaused
+    ) {
+        _token = address(token);
+        _merkleRoot = merkleRoot;
+        _claimAmount = CLAIM_AMOUNT;
+        _totalClaimed = totalClaimed;
+        _claimCount = claimCount;
+        _maxClaims = maxClaims;
+        _remainingClaims = maxClaims > claimCount ? maxClaims - claimCount : 0;
+        _isPaused = paused;
     }
 
     receive() external payable {
