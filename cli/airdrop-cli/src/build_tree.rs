@@ -124,7 +124,7 @@ fn main() -> Result<()> {
         anyhow::bail!("No valid addresses found in input file");
     }
 
-    let estimated_mem = ESTIMATED_MEMORY_PER_ADDRESS * leaves.len();
+    let estimated_mem = ESTIMATED_MEMORY_PER_ADDRESS.saturating_mul(leaves.len());
     println!(
         "Building Merkle tree for {} addresses (~{}MB estimated memory)...",
         leaves.len(),

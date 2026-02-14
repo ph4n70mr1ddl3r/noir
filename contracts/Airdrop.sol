@@ -60,6 +60,9 @@ contract Airdrop is ReentrancyGuard {
     error InvalidToken();
     error ContractPaused();
     error ContractNotPaused();
+    error EthNotAccepted();
+    error UnknownFunction();
+    error InsufficientBalanceForWithdraw();
 
     address public owner;
     address public pendingOwner;
@@ -265,6 +268,7 @@ contract Airdrop is ReentrancyGuard {
     /// @notice Schedules a token withdrawal operation
     /// @param amount Amount of tokens to withdraw
     function scheduleWithdrawTokens(uint256 amount) external onlyOwner {
+        if (amount > token.balanceOf(address(this))) revert InsufficientBalanceForWithdraw();
         bytes32 operationHash = _hashOperation(abi.encode("withdrawTokens", amount));
         if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
@@ -331,10 +335,10 @@ contract Airdrop is ReentrancyGuard {
     }
 
     receive() external payable {
-        revert("ETH not accepted");
+        revert EthNotAccepted();
     }
 
     fallback() external payable {
-        revert("Unknown function");
+        revert UnknownFunction();
     }
 }

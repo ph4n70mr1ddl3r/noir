@@ -265,6 +265,13 @@ contract AirdropTest is Test {
         assertEq(token.balanceOf(owner), ownerBalanceBefore);
     }
 
+    function testScheduleWithdrawTokensInsufficientBalance() public {
+        uint256 excessiveAmount = token.balanceOf(address(airdrop)) + 1;
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InsufficientBalanceForWithdraw.selector);
+        airdrop.scheduleWithdrawTokens(excessiveAmount);
+    }
+
     function testReentrancyGuard() public {
         ReentrancyToken reentrancyToken = new ReentrancyToken();
         MockVerifier reentrancyVerifier = new MockVerifier();
