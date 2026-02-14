@@ -138,6 +138,10 @@ pub fn address_to_leaf(address: [u8; 20]) -> [u8; 32] {
 
 pub const MERKLE_DEPTH: usize = 26;
 
+/// Domain separator bytes for nullifier computation to prevent cross-context replay.
+/// Must match the value in Noir circuit: [0xa1, 0xb2, 0xc3, 0xd4] placed at bytes 28-31.
+pub const DOMAIN_SEPARATOR_BYTES: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
+
 /// Generates a Merkle proof for a leaf at the given index.
 ///
 /// The proof is always padded to MERKLE_DEPTH (26) elements by hashing the current

@@ -13,7 +13,7 @@ use zeroize::Zeroize;
 
 use airdrop_cli::{
     get_merkle_proof, hex_encode, keccak256_hash, parse_address, validate_merkle_root,
-    write_file_atomic, MERKLE_DEPTH,
+    write_file_atomic, DOMAIN_SEPARATOR_BYTES, MERKLE_DEPTH,
 };
 
 const SECP256K1_ORDER: [u8; 32] = [
@@ -62,8 +62,6 @@ struct ClaimOutput {
     leaf_index: usize,
     claimer_address: String,
 }
-
-const DOMAIN_SEPARATOR_BYTES: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 
 /// Computes a nullifier from a private key to prevent double-claiming.
 ///
