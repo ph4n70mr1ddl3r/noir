@@ -412,6 +412,12 @@ contract AirdropTest is Test {
         airdrop.transferOwnership(address(0));
     }
 
+    function testAcceptOwnershipNoPendingOwner() public {
+        vm.prank(user);
+        vm.expectRevert(Airdrop.InvalidRecipient.selector);
+        airdrop.acceptOwnership();
+    }
+
     event PendingOwnerSet(address indexed pendingOwner);
 
     function testPendingOwnerSetEvent() public {

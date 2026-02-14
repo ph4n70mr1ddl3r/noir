@@ -14,7 +14,7 @@ interface IERC20 {
 }
 
 contract ReentrancyGuard {
-    bool private locked;
+    bool private locked = false;
 
     error ReentrancyGuardReentrantCall();
 
@@ -164,7 +164,9 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Accepts pending ownership transfer
+    /// @dev Only callable by the pending owner. Reverts if no ownership transfer is pending.
     function acceptOwnership() external {
+        if (pendingOwner == address(0)) revert InvalidRecipient();
         if (msg.sender != pendingOwner) revert NotOwner();
         emit OwnershipTransferred(owner, pendingOwner);
         owner = pendingOwner;
@@ -183,28 +185,38 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Schedules ownership renunciation
+    /// @dev Must be called before renounceOwnership. Subject to 2-day timelock.
     function scheduleRenounceOwnership() external onlyOwner {
         bytes32 operationHash = _hashOperation(abi.encode("renounceOwnership"));
         _scheduleOperation(operationHash);
     }
 
-    /// @notice Schedules a timelocked operation
-    /// @param operationHash The hash of the operation to schedule
-    /// @dev Clears any previous cancellation to allow re-scheduling
-    function _scheduleOperation(bytes32 operationHash) internal {
-        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
-        delete cancelledOperations[operationHash];
-        timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
-        emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
+    /// @notice Schedules a Merkle root update
+    /// @param newRoot The new Merkle root to set
+    /// @dev Must be called before updateRoot. Subject to 2-day timelock.
+    function scheduleUpdateRoot(bytes32 newRoot) external onlyOwner {
+        if (newRoot == bytes32(0)) revert InvalidRoot();
+        bytes32 operationHash = _hashOperation(abi.encode("updateRoot", newRoot));
+        _scheduleOperation(operationHash);
     }
 
-    function cancelOperation(bytes32 operationHash) external onlyOwner {
-        if (executedOperations[operationHash]) revert OperationAlreadyExecuted();
-        if (cancelledOperations[operationHash]) revert OperationAlreadyCancelled();
-        if (timelockSchedule[operationHash] == 0) revert OperationNotScheduled();
-        cancelledOperations[operationHash] = true;
-        delete timelockSchedule[operationHash];
-        emit OperationCancelled(operationHash);
+    /// @notice Schedules a verifier contract update
+    /// @param newVerifier Address of the new verifier contract
+    /// @dev Must be called before updateVerifier. Subject to 2-day timelock.
+    function scheduleUpdateVerifier(address newVerifier) external onlyOwner {
+        if (newVerifier == address(0)) revert InvalidVerifier();
+        bytes32 operationHash = _hashOperation(abi.encode("updateVerifier", newVerifier));
+        _scheduleOperation(operationHash);
+    }
+
+    /// @notice Schedules a max claims update
+    /// @param _maxClaims New maximum claims value
+    /// @dev Must be called before setMaxClaims. Subject to 2-day timelock.
+    function scheduleSetMaxClaims(uint256 _maxClaims) external onlyOwner {
+        if (_maxClaims == 0) revert InvalidMaxClaims();
+        if (_maxClaims < claimCount) revert MaxClaimsBelowCurrent();
+        bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
+        _scheduleOperation(operationHash);
     }
 
     /// @notice Pauses all claim operations
@@ -316,27 +328,31 @@ contract Airdrop is ReentrancyGuard {
         if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
     }
 
-    // Schedule a timelocked operation (must be called before execute)
-    function scheduleUpdateRoot(bytes32 newRoot) external onlyOwner {
-        if (newRoot == bytes32(0)) revert InvalidRoot();
-        bytes32 operationHash = _hashOperation(abi.encode("updateRoot", newRoot));
-        _scheduleOperation(operationHash);
+    /// @notice Schedules a timelocked operation
+    /// @param operationHash The hash of the operation to schedule
+    /// @dev Clears any previous cancellation to allow re-scheduling
+    function _scheduleOperation(bytes32 operationHash) internal {
+        if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
+        delete cancelledOperations[operationHash];
+        timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
+        emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
-    function scheduleUpdateVerifier(address newVerifier) external onlyOwner {
-        if (newVerifier == address(0)) revert InvalidVerifier();
-        bytes32 operationHash = _hashOperation(abi.encode("updateVerifier", newVerifier));
-        _scheduleOperation(operationHash);
+    /// @notice Cancels a scheduled timelocked operation
+    /// @param operationHash The hash of the operation to cancel
+    /// @dev Only callable by owner. Cannot cancel already executed or cancelled operations.
+    function cancelOperation(bytes32 operationHash) external onlyOwner {
+        if (executedOperations[operationHash]) revert OperationAlreadyExecuted();
+        if (cancelledOperations[operationHash]) revert OperationAlreadyCancelled();
+        if (timelockSchedule[operationHash] == 0) revert OperationNotScheduled();
+        cancelledOperations[operationHash] = true;
+        delete timelockSchedule[operationHash];
+        emit OperationCancelled(operationHash);
     }
 
-    function scheduleSetMaxClaims(uint256 _maxClaims) external onlyOwner {
-        if (_maxClaims == 0) revert InvalidMaxClaims();
-        if (_maxClaims < claimCount) revert MaxClaimsBelowCurrent();
-        bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
-        _scheduleOperation(operationHash);
-    }
-
-    // Helper function to execute timelocked operations
+    /// @notice Executes a timelocked operation after delay has passed
+    /// @param operationHash The hash of the operation to execute
+    /// @dev Reverts if timelock has not expired, has already been executed, or has expired
     function _executeTimelockedOperation(bytes32 operationHash) internal {
         uint256 executeAfter = timelockSchedule[operationHash];
         if (executeAfter == 0 || block.timestamp < executeAfter) revert TimelockNotExpired();
