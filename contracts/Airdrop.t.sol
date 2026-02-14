@@ -723,25 +723,16 @@ contract AirdropTest is Test {
     }
 
     function testClaimInfo() public view {
-        (
-            address _token,
-            bytes32 _merkleRoot,
-            uint256 _claimAmount,
-            uint256 _totalClaimed,
-            uint256 _claimCount,
-            uint256 _maxClaims,
-            uint256 _remainingClaims,
-            bool _isPaused
-        ) = airdrop.claimInfo();
+        Airdrop.ClaimInfo memory info = airdrop.claimInfo();
 
-        assertEq(_token, address(token));
-        assertEq(_merkleRoot, merkleRoot);
-        assertEq(_claimAmount, CLAIM_AMOUNT);
-        assertEq(_totalClaimed, 0);
-        assertEq(_claimCount, 0);
-        assertEq(_maxClaims, MAX_CLAIMS);
-        assertEq(_remainingClaims, MAX_CLAIMS);
-        assertFalse(_isPaused);
+        assertEq(info.token, address(token));
+        assertEq(info.merkleRoot, merkleRoot);
+        assertEq(info.claimAmount, CLAIM_AMOUNT);
+        assertEq(info.totalClaimed, 0);
+        assertEq(info.claimCount, 0);
+        assertEq(info.maxClaims, MAX_CLAIMS);
+        assertEq(info.remainingClaims, MAX_CLAIMS);
+        assertFalse(info.isPaused);
     }
 
     function testClaimInfoAfterClaims() public {
@@ -754,16 +745,19 @@ contract AirdropTest is Test {
             airdrop.claim(_mockProof(), claimNullifier, recipient);
         }
 
-        (,,, uint256 _totalClaimed, uint256 _claimCount,, uint256 _remainingClaims,) =
-            airdrop.claimInfo();
+        Airdrop.ClaimInfo memory info = airdrop.claimInfo();
 
-        assertEq(_totalClaimed, 5 * CLAIM_AMOUNT);
-        assertEq(_claimCount, 5);
-        assertEq(_remainingClaims, MAX_CLAIMS - 5);
+        assertEq(info.totalClaimed, 5 * CLAIM_AMOUNT);
+        assertEq(info.claimCount, 5);
+        assertEq(info.remainingClaims, MAX_CLAIMS - 5);
     }
 
     function testDomainSeparator() public view {
         assertEq(bytes4(airdrop.DOMAIN_SEPARATOR()), bytes4(0xa1b2c3d4));
+    }
+
+    function testVersion() public view {
+        assertEq(airdrop.VERSION(), "1.0.0");
     }
 
     function testOperationNotExecutedTwice() public {

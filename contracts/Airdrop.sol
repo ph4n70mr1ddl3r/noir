@@ -86,6 +86,8 @@ contract Airdrop is ReentrancyGuard {
     bytes32 public merkleRoot;
     bool public paused;
 
+    string public constant VERSION = "1.0.0";
+
     uint256 public constant CLAIM_AMOUNT = 100 * 10 ** 18;
     uint256 public totalClaimed;
     uint256 public claimCount;
@@ -115,6 +117,17 @@ contract Airdrop is ReentrancyGuard {
     event Paused(address indexed account);
     event Unpaused(address indexed account);
     event TokensWithdrawn(address indexed owner, uint256 amount);
+
+    struct ClaimInfo {
+        address token;
+        bytes32 merkleRoot;
+        uint256 claimAmount;
+        uint256 totalClaimed;
+        uint256 claimCount;
+        uint256 maxClaims;
+        uint256 remainingClaims;
+        bool isPaused;
+    }
 
     modifier whenNotPaused() {
         _checkNotPaused();
@@ -438,36 +451,16 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Returns comprehensive claim-related information
-    /// @return _token The ERC20 token address
-    /// @return _merkleRoot The current Merkle root
-    /// @return _claimAmount The amount of tokens per claim
-    /// @return _totalClaimed Total tokens claimed so far
-    /// @return _claimCount Number of claims made
-    /// @return _maxClaims Maximum allowed claims
-    /// @return _remainingClaims Remaining claims allowed
-    /// @return _isPaused Whether the contract is paused
-    function claimInfo()
-        external
-        view
-        returns (
-            address _token,
-            bytes32 _merkleRoot,
-            uint256 _claimAmount,
-            uint256 _totalClaimed,
-            uint256 _claimCount,
-            uint256 _maxClaims,
-            uint256 _remainingClaims,
-            bool _isPaused
-        )
-    {
-        _token = address(token);
-        _merkleRoot = merkleRoot;
-        _claimAmount = CLAIM_AMOUNT;
-        _totalClaimed = totalClaimed;
-        _claimCount = claimCount;
-        _maxClaims = maxClaims;
-        _remainingClaims = maxClaims > claimCount ? maxClaims - claimCount : 0;
-        _isPaused = paused;
+    /// @return info ClaimInfo struct containing all claim-related state
+    function claimInfo() external view returns (ClaimInfo memory info) {
+        info.token = address(token);
+        info.merkleRoot = merkleRoot;
+        info.claimAmount = CLAIM_AMOUNT;
+        info.totalClaimed = totalClaimed;
+        info.claimCount = claimCount;
+        info.maxClaims = maxClaims;
+        info.remainingClaims = maxClaims > claimCount ? maxClaims - claimCount : 0;
+        info.isPaused = paused;
     }
 
     receive() external payable {
