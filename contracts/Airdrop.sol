@@ -391,20 +391,20 @@ contract Airdrop is ReentrancyGuard {
 
     /// @notice Checks if a nullifier has already been used
     /// @param nullifier The nullifier to check
-    /// @return used True if the nullifier has been used, false otherwise
-    function isNullifierUsed(bytes32 nullifier) external view returns (bool used) {
+    /// @return True if the nullifier has been used, false otherwise
+    function isNullifierUsed(bytes32 nullifier) external view returns (bool) {
         return usedNullifiers[nullifier];
     }
 
     /// @notice Returns the current token balance of the contract
-    /// @return balance The balance of tokens held by the contract
-    function claimableBalance() external view returns (uint256 balance) {
+    /// @return The balance of tokens held by the contract
+    function claimableBalance() external view returns (uint256) {
         return token.balanceOf(address(this));
     }
 
     /// @notice Returns the number of remaining claims allowed
-    /// @return remaining The number of claims that can still be made
-    function remainingClaims() external view returns (uint256 remaining) {
+    /// @return The number of claims that can still be made
+    function remainingClaims() external view returns (uint256) {
         if (maxClaims <= claimCount) {
             return 0;
         }

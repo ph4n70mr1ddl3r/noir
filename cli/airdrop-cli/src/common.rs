@@ -26,7 +26,7 @@ pub enum CommonError {
     #[error("Invalid merkle root length: expected 64 hex chars, got {0}")]
     InvalidRootLength(usize),
 
-    #[error("Zero merkle root not allowed")]
+    #[error("Invalid merkle root: must not be zero")]
     ZeroRoot,
 
     #[error("Merkle tree is empty")]
@@ -37,6 +37,9 @@ pub enum CommonError {
 
     #[error("Encountered empty level {0} in Merkle tree")]
     EmptyLevel(usize),
+
+    #[error("IO error: {0}")]
+    Io(#[source] std::io::Error),
 }
 
 /// Parses an Ethereum address from a hex string.
