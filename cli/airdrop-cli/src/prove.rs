@@ -73,6 +73,23 @@ fn validate_hex_32_bytes(value: &str, name: &str) -> Result<[u8; 32]> {
     Ok(bytes)
 }
 
+fn validate_recipient_address(value: &str) -> Result<[u8; 20]> {
+    let cleaned = value.trim().strip_prefix("0x").unwrap_or(value.trim());
+    if cleaned.len() != 40 {
+        anyhow::bail!(
+            "Invalid recipient address length: expected 40 hex chars, got {}",
+            cleaned.len()
+        );
+    }
+    let mut bytes = [0u8; 20];
+    hex::decode_to_slice(cleaned, &mut bytes)
+        .context("Invalid hex encoding for recipient address")?;
+    if bytes == [0u8; 20] {
+        anyhow::bail!("Recipient address cannot be zero");
+    }
+    Ok(bytes)
+}
+
 fn parse_private_key(key_str: &str) -> Result<[u8; 32]> {
     let cleaned = key_str.trim().strip_prefix("0x").unwrap_or(key_str.trim());
     if cleaned.is_empty() {
@@ -173,6 +190,7 @@ pub fn run(cli: &Cli) -> Result<()> {
 
     validate_hex_32_bytes(&claim.merkle_root, "merkle_root")?;
     validate_hex_32_bytes(&claim.nullifier, "nullifier")?;
+    validate_recipient_address(&claim.recipient)?;
 
     let mut private_key_bytes = read_private_key(cli.private_key.as_ref())?;
 
@@ -268,6 +286,43 @@ mod tests {
     fn test_parse_private_key_invalid_hex() {
         let key = "0xghijklmnopqrstuvwxyz1234567890abcdef1234567890abcdef1234567890";
         let result = parse_private_key(key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_recipient_address_valid() {
+        let addr = "0x1234567890abcdef1234567890abcdef12345678";
+        let result = validate_recipient_address(addr);
+        assert!(result.is_ok());
+        let bytes = result.unwrap();
+        assert_eq!(bytes.len(), 20);
+    }
+
+    #[test]
+    fn test_validate_recipient_address_valid_no_prefix() {
+        let addr = "1234567890abcdef1234567890abcdef12345678";
+        let result = validate_recipient_address(addr);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_recipient_address_invalid_length() {
+        let addr = "0x1234";
+        let result = validate_recipient_address(addr);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_recipient_address_zero() {
+        let addr = "0x0000000000000000000000000000000000000000";
+        let result = validate_recipient_address(addr);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_recipient_address_invalid_hex() {
+        let addr = "0xghijklmnopqrstuvwxyz1234567890abcdef";
+        let result = validate_recipient_address(addr);
         assert!(result.is_err());
     }
 
