@@ -796,6 +796,68 @@ contract AirdropTest is Test {
         airdrop.withdrawTokens(withdrawAmount);
         vm.stopPrank();
     }
+
+    function testInvariant_TotalClaimedMatchesClaimCount() public {
+        verifier.setVerify(true);
+
+        assertEq(airdrop.totalClaimed(), 0);
+        assertEq(airdrop.claimCount(), 0);
+
+        uint256 expectedTotal = 0;
+        for (uint256 i = 0; i < 10; i++) {
+            bytes32 claimNullifier = bytes32(uint256(i + 50000));
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 500));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+
+            expectedTotal += CLAIM_AMOUNT;
+            assertEq(airdrop.totalClaimed(), expectedTotal);
+            assertEq(airdrop.claimCount(), i + 1);
+            assertEq(airdrop.totalClaimed(), airdrop.claimCount() * CLAIM_AMOUNT);
+        }
+    }
+
+    function testFuzz_InvariantTotalClaimedAfterClaims(uint8 numClaims) public {
+        vm.assume(numClaims > 0);
+        vm.assume(numClaims <= 50);
+
+        verifier.setVerify(true);
+
+        for (uint256 i = 0; i < numClaims; i++) {
+            bytes32 claimNullifier = bytes32(uint256(i + 60000));
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 600));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+        }
+
+        assertEq(airdrop.totalClaimed(), uint256(numClaims) * CLAIM_AMOUNT);
+        assertEq(airdrop.claimCount(), uint256(numClaims));
+    }
+
+    function testClaimDoesNotAffectOtherState() public {
+        verifier.setVerify(true);
+
+        bytes32 nullifier = bytes32(uint256(12345));
+        address recipient = address(0xABC);
+        address originalOwner = airdrop.owner();
+        bytes32 originalRoot = airdrop.merkleRoot();
+        address originalVerifier = address(airdrop.verifier());
+        address originalToken = address(airdrop.token());
+        uint256 originalMaxClaims = airdrop.maxClaims();
+        bool originalPaused = airdrop.paused();
+
+        vm.prank(user);
+        airdrop.claim(_mockProof(), nullifier, recipient);
+
+        assertEq(airdrop.owner(), originalOwner);
+        assertEq(airdrop.merkleRoot(), originalRoot);
+        assertEq(address(airdrop.verifier()), originalVerifier);
+        assertEq(address(airdrop.token()), originalToken);
+        assertEq(airdrop.maxClaims(), originalMaxClaims);
+        assertEq(airdrop.paused(), originalPaused);
+    }
 }
 
 contract ReentrancyToken is IERC20 {

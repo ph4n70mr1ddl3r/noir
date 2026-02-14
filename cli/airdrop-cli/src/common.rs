@@ -443,4 +443,75 @@ mod tests {
 
         let _ = std::fs::remove_file(&test_path);
     }
+
+    #[test]
+    fn test_get_merkle_proof_single_leaf() {
+        let single_leaf = vec![[42u8; 32]];
+        let root = single_leaf[0];
+        let tree = vec![single_leaf, vec![root]];
+
+        let (proof, indices) = get_merkle_proof(&tree, 0).unwrap();
+        assert_eq!(proof.len(), MERKLE_DEPTH);
+        assert_eq!(indices.len(), MERKLE_DEPTH);
+        assert!(indices.iter().all(|&x| x));
+    }
+
+    #[test]
+    fn test_get_merkle_proof_two_leaves() {
+        let level0 = vec![[1u8; 32], [2u8; 32]];
+        let root = keccak256_hash([1u8; 32], [2u8; 32]);
+        let tree = vec![level0, vec![root]];
+
+        let (proof_left, indices_left) = get_merkle_proof(&tree, 0).unwrap();
+        assert_eq!(proof_left[0], [2u8; 32]);
+        assert!(indices_left[0]);
+
+        let (proof_right, indices_right) = get_merkle_proof(&tree, 1).unwrap();
+        assert_eq!(proof_right[0], [1u8; 32]);
+        assert!(!indices_right[0]);
+    }
+
+    #[test]
+    fn test_address_to_leaf_consistency() {
+        let address: [u8; 20] = [
+            0xDE, 0xAD, 0xBE, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22,
+            0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+        ];
+        let leaf1 = address_to_leaf(address);
+        let leaf2 = address_to_leaf(address);
+        assert_eq!(leaf1, leaf2);
+    }
+
+    #[test]
+    fn test_keccak256_hash_deterministic() {
+        let left = [1u8; 32];
+        let right = [2u8; 32];
+        let hash1 = keccak256_hash(left, right);
+        let hash2 = keccak256_hash(left, right);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_keccak256_hash_different_inputs() {
+        let left1 = [1u8; 32];
+        let right1 = [2u8; 32];
+        let hash1 = keccak256_hash(left1, right1);
+
+        let left2 = [2u8; 32];
+        let right2 = [1u8; 32];
+        let hash2 = keccak256_hash(left2, right2);
+
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_parse_address_case_insensitive() {
+        let lower = "0xabcdef0123456789abcdef0123456789abcdef01";
+        let upper = "0xABCDEF0123456789ABCDEF0123456789ABCDEF01";
+
+        let result_lower = parse_address(lower).unwrap();
+        let result_upper = parse_address(upper).unwrap();
+
+        assert_eq!(result_lower, result_upper);
+    }
 }

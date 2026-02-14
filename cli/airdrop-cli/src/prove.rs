@@ -125,6 +125,14 @@ fn generate_noir_proof(
         anyhow::bail!("Circuit directory does not exist: {:?}", circuit_path);
     }
 
+    let nargo_toml = circuit_path.join("Nargo.toml");
+    if !nargo_toml.exists() {
+        anyhow::bail!(
+            "Circuit directory does not contain Nargo.toml: {:?}",
+            circuit_path
+        );
+    }
+
     let public_inputs = vec![
         claim.merkle_root.clone(),
         claim.recipient.clone(),
@@ -348,6 +356,13 @@ mod tests {
     #[test]
     #[cfg(feature = "mock-proofs")]
     fn test_generate_mock_proof() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let nargo_path = temp_dir.path().join("Nargo.toml");
+        let mut file = std::fs::File::create(&nargo_path).unwrap();
+        file.write_all(b"[package]\nname = \"test\"\n").unwrap();
+        drop(file);
+
         let claim = ClaimInput {
             merkle_root: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
                 .to_string(),
@@ -360,8 +375,7 @@ mod tests {
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
         };
         let private_key = [1u8; 32];
-        let circuit_path = std::path::Path::new(".");
-        let result = generate_noir_proof(&claim, &private_key, circuit_path);
+        let result = generate_noir_proof(&claim, &private_key, temp_dir.path());
         assert!(result.is_ok());
         let proof = result.unwrap();
         assert!(proof.is_mock);
@@ -371,6 +385,13 @@ mod tests {
     #[test]
     #[cfg(feature = "mock-proofs")]
     fn test_generate_mock_proof_rejects_zero_key() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let nargo_path = temp_dir.path().join("Nargo.toml");
+        let mut file = std::fs::File::create(&nargo_path).unwrap();
+        file.write_all(b"[package]\nname = \"test\"\n").unwrap();
+        drop(file);
+
         let claim = ClaimInput {
             merkle_root: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
                 .to_string(),
@@ -383,8 +404,29 @@ mod tests {
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
         };
         let private_key = [0u8; 32];
-        let circuit_path = std::path::Path::new(".");
-        let result = generate_noir_proof(&claim, &private_key, circuit_path);
+        let result = generate_noir_proof(&claim, &private_key, temp_dir.path());
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "mock-proofs")]
+    fn test_generate_mock_proof_requires_nargo_toml() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let claim = ClaimInput {
+            merkle_root: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                .to_string(),
+            recipient: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            nullifier: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+                .to_string(),
+            merkle_proof: vec![],
+            merkle_indices: vec![],
+            leaf_index: 0,
+            claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+        };
+        let private_key = [1u8; 32];
+        let result = generate_noir_proof(&claim, &private_key, temp_dir.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Nargo.toml"));
     }
 }

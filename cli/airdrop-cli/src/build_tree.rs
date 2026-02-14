@@ -220,4 +220,42 @@ mod tests {
         assert_eq!(tree[1].len(), 2);
         assert_eq!(tree[2].len(), 1);
     }
+
+    #[test]
+    fn test_build_merkle_tree_consistency() {
+        let leaves = vec![[1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32]];
+
+        let (tree1, root1) = build_merkle_tree(leaves.clone()).unwrap();
+        let (tree2, root2) = build_merkle_tree(leaves).unwrap();
+
+        assert_eq!(root1, root2);
+        assert_eq!(tree1.len(), tree2.len());
+    }
+
+    #[test]
+    fn test_build_merkle_tree_order_matters() {
+        let leaves1 = vec![[1u8; 32], [2u8; 32]];
+        let leaves2 = vec![[2u8; 32], [1u8; 32]];
+
+        let (_, root1) = build_merkle_tree(leaves1).unwrap();
+        let (_, root2) = build_merkle_tree(leaves2).unwrap();
+
+        assert_ne!(root1, root2);
+    }
+
+    #[test]
+    fn test_build_merkle_tree_large() {
+        let leaves: Vec<[u8; 32]> = (0..100)
+            .map(|i| {
+                let mut arr = [0u8; 32];
+                arr[0] = i as u8;
+                arr
+            })
+            .collect();
+
+        let (tree, root) = build_merkle_tree(leaves).unwrap();
+
+        assert!(!root.iter().all(|&b| b == 0));
+        assert!(tree.len() > 1);
+    }
 }
