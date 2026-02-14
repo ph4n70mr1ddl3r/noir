@@ -22,6 +22,7 @@ contract DeployAirdrop is Script {
         if (maxClaims == 0) revert InvalidMaxClaims();
 
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -40,6 +41,6 @@ contract DeployAirdrop is Script {
         console.log("Verifier address:", verifierAddress);
         console.log("Merkle root:", vm.toString(merkleRoot));
         console.log("Max claims:", maxClaims);
-        console.log("Deployer:", msg.sender);
+        console.log("Deployer:", deployer);
     }
 }

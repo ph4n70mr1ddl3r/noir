@@ -783,6 +783,7 @@ contract AirdropTest is Test {
         verifier.setVerify(true);
         for (uint256 i = 0; i < 5; i++) {
             bytes32 claimNullifier = bytes32(uint256(i + 1));
+            // forge-lint: disable-next-line(unsafe-typecast)
             address recipient = address(uint160(i + 100));
             vm.prank(recipient);
             airdrop.claim(_mockProof(), claimNullifier, recipient);

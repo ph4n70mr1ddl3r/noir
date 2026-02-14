@@ -51,6 +51,10 @@ uninlined_format_args = "allow"
 unnecessary_debug_formatting = "allow"
 
 [[bin]]
+name = "airdrop"
+path = "src/main.rs"
+
+[[bin]]
 name = "build-tree"
 path = "src/build_tree.rs"
 
