@@ -277,8 +277,8 @@ contract AirdropTest is Test {
         reentrancyToken.mint(address(reentrancyAirdrop), MAX_CLAIMS * CLAIM_AMOUNT);
         vm.stopPrank();
 
-        Malicious attacker = new Malicious(address(reentrancyAirdrop));
-        reentrancyToken.setAttacker(address(attacker), address(reentrancyAirdrop));
+        Malicious attacker = new Malicious(payable(address(reentrancyAirdrop)));
+        reentrancyToken.setAttacker(address(attacker), payable(address(reentrancyAirdrop)));
 
         bytes32 nullifier = bytes32(uint256(999));
 
@@ -547,6 +547,7 @@ contract AirdropTest is Test {
 
     function testFuzz_ClaimWithValidProof(bytes32 nullifier, address recipient) public {
         vm.assume(recipient != address(0));
+        vm.assume(recipient != address(airdrop));
         vm.assume(nullifier != bytes32(0));
         verifier.setVerify(true);
 
@@ -605,6 +606,16 @@ contract AirdropTest is Test {
         airdrop.updateRoot(newRoot);
         vm.stopPrank();
     }
+
+    function testRejectsEthTransfers() public {
+        (bool success,) = address(airdrop).call{value: 1 ether}("");
+        assertFalse(success);
+    }
+
+    function testFallbackReverts() public {
+        (bool success,) = address(airdrop).call(abi.encodeWithSignature("unknownFunction()"));
+        assertFalse(success);
+    }
 }
 
 contract ReentrancyToken is IERC20 {
@@ -613,7 +624,7 @@ contract ReentrancyToken is IERC20 {
     address public attacker;
     Airdrop public airdrop;
 
-    function setAttacker(address _attacker, address _airdrop) external {
+    function setAttacker(address _attacker, address payable _airdrop) external {
         attacker = _attacker;
         airdrop = Airdrop(_airdrop);
     }
@@ -642,7 +653,7 @@ contract ReentrancyToken is IERC20 {
 contract Malicious {
     Airdrop public airdrop;
 
-    constructor(address _airdrop) {
+    constructor(address payable _airdrop) {
         airdrop = Airdrop(_airdrop);
     }
 }

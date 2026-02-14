@@ -329,4 +329,12 @@ contract Airdrop is ReentrancyGuard {
         }
         return maxClaims - claimCount;
     }
+
+    receive() external payable {
+        revert("ETH not accepted");
+    }
+
+    fallback() external payable {
+        revert("Unknown function");
+    }
 }

@@ -189,3 +189,142 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_hex_32_bytes_valid() {
+        let input = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let result = validate_hex_32_bytes(input, "test");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_hex_32_bytes_valid_no_prefix() {
+        let input = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let result = validate_hex_32_bytes(input, "test");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_hex_32_bytes_invalid_length() {
+        let input = "0x1234";
+        let result = validate_hex_32_bytes(input, "test");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_hex_32_bytes_invalid_hex() {
+        let input = "0xghijklmnopqrstuvwxyz1234567890abcdef1234567890abcdef1234567890";
+        let result = validate_hex_32_bytes(input, "test");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_hex_32_bytes_whitespace() {
+        let input = "  0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef  ";
+        let result = validate_hex_32_bytes(input, "test");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_private_key_valid() {
+        let key = "0x0000000000000000000000000000000000000000000000000000000000000001";
+        let result = parse_private_key(key);
+        assert!(result.is_ok());
+        let bytes = result.unwrap();
+        assert_eq!(bytes[31], 1);
+    }
+
+    #[test]
+    fn test_parse_private_key_valid_no_prefix() {
+        let key = "0000000000000000000000000000000000000000000000000000000000000001";
+        let result = parse_private_key(key);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_private_key_empty() {
+        let key = "";
+        let result = parse_private_key(key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_private_key_invalid_length() {
+        let key = "0x1234";
+        let result = parse_private_key(key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_private_key_invalid_hex() {
+        let key = "0xghijklmnopqrstuvwxyz1234567890abcdef1234567890abcdef1234567890";
+        let result = parse_private_key(key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_claim_input_deserialization() {
+        let json = r#"{
+            "merkle_root": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            "recipient": "0x1234567890abcdef1234567890abcdef12345678",
+            "nullifier": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+            "merkle_proof": ["0x1111111111111111111111111111111111111111111111111111111111111111"],
+            "merkle_indices": [true],
+            "leaf_index": 0,
+            "claimer_address": "0x1234567890abcdef1234567890abcdef12345678"
+        }"#;
+        let claim: ClaimInput = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            claim.merkle_root,
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        );
+        assert_eq!(claim.leaf_index, 0);
+    }
+
+    #[test]
+    #[cfg(feature = "mock-proofs")]
+    fn test_generate_mock_proof() {
+        let claim = ClaimInput {
+            merkle_root: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                .to_string(),
+            recipient: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            nullifier: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+                .to_string(),
+            merkle_proof: vec![],
+            merkle_indices: vec![],
+            leaf_index: 0,
+            claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+        };
+        let private_key = [1u8; 32];
+        let circuit_path = std::path::Path::new(".");
+        let result = generate_noir_proof(&claim, &private_key, circuit_path);
+        assert!(result.is_ok());
+        let proof = result.unwrap();
+        assert!(proof.is_mock);
+        assert_eq!(proof.public_inputs.len(), 3);
+    }
+
+    #[test]
+    #[cfg(feature = "mock-proofs")]
+    fn test_generate_mock_proof_rejects_zero_key() {
+        let claim = ClaimInput {
+            merkle_root: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                .to_string(),
+            recipient: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            nullifier: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+                .to_string(),
+            merkle_proof: vec![],
+            merkle_indices: vec![],
+            leaf_index: 0,
+            claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+        };
+        let private_key = [0u8; 32];
+        let circuit_path = std::path::Path::new(".");
+        let result = generate_noir_proof(&claim, &private_key, circuit_path);
+        assert!(result.is_err());
+    }
+}
