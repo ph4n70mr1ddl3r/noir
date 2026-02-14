@@ -58,6 +58,7 @@ struct ProofOutput {
     timestamp: u64,
 }
 
+#[inline]
 fn validate_hex_32_bytes(value: &str, name: &str) -> Result<[u8; 32]> {
     let cleaned = value.trim().strip_prefix("0x").unwrap_or(value.trim());
     if cleaned.len() != 64 {
@@ -73,6 +74,7 @@ fn validate_hex_32_bytes(value: &str, name: &str) -> Result<[u8; 32]> {
     Ok(bytes)
 }
 
+#[inline]
 fn validate_recipient_address(value: &str) -> Result<[u8; 20]> {
     let cleaned = value.trim().strip_prefix("0x").unwrap_or(value.trim());
     if cleaned.len() != 40 {
@@ -90,6 +92,7 @@ fn validate_recipient_address(value: &str) -> Result<[u8; 20]> {
     Ok(bytes)
 }
 
+#[inline]
 fn parse_private_key(key_str: &str) -> Result<[u8; 32]> {
     let cleaned = key_str.trim().strip_prefix("0x").unwrap_or(key_str.trim());
     if cleaned.is_empty() {

@@ -270,6 +270,7 @@ fn load_merkle_tree(path: &Path) -> Result<Vec<Vec<[u8; 32]>>> {
 ///
 /// # Returns
 /// 20-byte Ethereum address
+#[inline]
 fn private_key_to_address(signing_key: &SigningKey) -> Result<[u8; 20]> {
     let public_key = signing_key.verifying_key();
     let encoded = public_key.to_encoded_point(false);
@@ -289,6 +290,7 @@ fn private_key_to_address(signing_key: &SigningKey) -> Result<[u8; 20]> {
 ///
 /// # Errors
 /// Returns an error if the key is zero or >= curve order
+#[inline]
 fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
     if key_bytes == &[0u8; 32] {
         anyhow::bail!("Private key cannot be zero");
