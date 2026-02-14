@@ -227,6 +227,10 @@ pub fn get_merkle_proof(
 ///
 /// # Errors
 /// Returns an error if file operations fail
+///
+/// # Security
+/// On Unix systems, the temp file is created with mode 0o600 (owner read/write only)
+/// to prevent unauthorized access before the atomic rename.
 pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Result<()> {
     use std::io::Write;
 
@@ -244,6 +248,7 @@ pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Resu
             .open(&temp_path)?;
         file.write_all(content.as_bytes())?;
         file.flush()?;
+        file.sync_all()?;
     }
 
     #[cfg(not(unix))]
@@ -251,6 +256,7 @@ pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Resu
         let mut file = std::fs::File::create(&temp_path)?;
         file.write_all(content.as_bytes())?;
         file.flush()?;
+        file.sync_all()?;
     }
 
     let cleanup = scopeguard::guard((), |()| {

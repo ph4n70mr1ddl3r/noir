@@ -615,7 +615,7 @@ contract AirdropTest is Test {
     }
 
     function testRejectsEthTransfers() public {
-        (bool success,) = address(airdrop).call{value: 1 ether}("");
+        (bool success,) = address(airdrop).call{ value: 1 ether }("");
         assertFalse(success);
     }
 
