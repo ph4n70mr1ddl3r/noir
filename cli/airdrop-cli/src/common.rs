@@ -40,6 +40,12 @@ pub enum CommonError {
 
     #[error("IO error: {0}")]
     Io(#[source] std::io::Error),
+
+    #[error("Private key cannot be zero")]
+    ZeroPrivateKey,
+
+    #[error("Private key must be less than secp256k1 curve order")]
+    PrivateKeyExceedsOrder,
 }
 
 /// Parses an Ethereum address from a hex string.
@@ -149,6 +155,34 @@ pub const SECP256K1_ORDER: [u8; 32] = [
 /// Domain separator bytes for nullifier computation to prevent cross-context replay.
 /// Must match the value in Noir circuit: [0xa1, 0xb2, 0xc3, 0xd4] placed at bytes 28-31.
 pub const DOMAIN_SEPARATOR_BYTES: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
+
+/// Validates that a private key is within the valid range for secp256k1.
+///
+/// The key must be non-zero and less than the curve order n.
+///
+/// # Arguments
+/// * `key_bytes` - 32-byte private key (big-endian)
+///
+/// # Errors
+/// Returns an error if the key is zero or >= curve order
+#[inline]
+pub fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<(), CommonError> {
+    if key_bytes == &[0u8; 32] {
+        return Err(CommonError::ZeroPrivateKey);
+    }
+
+    for i in 0..32 {
+        match key_bytes[i].cmp(&SECP256K1_ORDER[i]) {
+            std::cmp::Ordering::Less => return Ok(()),
+            std::cmp::Ordering::Greater => {
+                return Err(CommonError::PrivateKeyExceedsOrder);
+            }
+            std::cmp::Ordering::Equal => continue,
+        }
+    }
+
+    Err(CommonError::PrivateKeyExceedsOrder)
+}
 
 /// Generates a Merkle proof for a leaf at the given index.
 ///

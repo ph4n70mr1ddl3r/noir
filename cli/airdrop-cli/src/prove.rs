@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use zeroize::Zeroize;
 
-use airdrop_cli::{write_file_atomic, SECP256K1_ORDER};
+use airdrop_cli::{validate_private_key_range, write_file_atomic};
 
 #[derive(Parser, Debug)]
 #[command(name = "prove")]
@@ -121,25 +121,6 @@ fn parse_private_key(key_str: &str) -> Result<[u8; 32]> {
         .context("Invalid private key: must be within secp256k1 curve order")?;
 
     Ok(private_key)
-}
-
-#[inline]
-fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
-    if key_bytes == &[0u8; 32] {
-        anyhow::bail!("Private key cannot be zero");
-    }
-
-    for i in 0..32 {
-        match key_bytes[i].cmp(&SECP256K1_ORDER[i]) {
-            std::cmp::Ordering::Less => return Ok(()),
-            std::cmp::Ordering::Greater => {
-                anyhow::bail!("Private key must be less than secp256k1 curve order");
-            }
-            std::cmp::Ordering::Equal => continue,
-        }
-    }
-
-    anyhow::bail!("Private key must be less than secp256k1 curve order");
 }
 
 #[cfg(feature = "mock-proofs")]

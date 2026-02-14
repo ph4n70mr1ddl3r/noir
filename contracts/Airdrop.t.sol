@@ -696,16 +696,8 @@ contract AirdropTest is Test {
             airdrop.claim(_mockProof(), claimNullifier, recipient);
         }
 
-        (
-            ,
-            ,
-            ,
-            uint256 _totalClaimed,
-            uint256 _claimCount,
-            ,
-            uint256 _remainingClaims,
-            
-        ) = airdrop.claimInfo();
+        (,,, uint256 _totalClaimed, uint256 _claimCount,, uint256 _remainingClaims,) =
+            airdrop.claimInfo();
 
         assertEq(_totalClaimed, 5 * CLAIM_AMOUNT);
         assertEq(_claimCount, 5);

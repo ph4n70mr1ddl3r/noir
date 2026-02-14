@@ -13,7 +13,7 @@ use zeroize::Zeroize;
 
 use airdrop_cli::{
     get_merkle_proof, hex_encode, keccak256_hash, parse_address, validate_merkle_root,
-    write_file_atomic, DOMAIN_SEPARATOR_BYTES, MERKLE_DEPTH, SECP256K1_ORDER,
+    validate_private_key_range, write_file_atomic, DOMAIN_SEPARATOR_BYTES, MERKLE_DEPTH,
 };
 
 use k256::ecdsa::signature::Signer;
@@ -74,7 +74,6 @@ struct ClaimOutput {
 ///
 /// # Returns
 /// 32-byte nullifier hash
-#[must_use]
 pub fn compute_nullifier(private_key_bytes: &[u8; 32]) -> Result<[u8; 32]> {
     let mut domain_padded = [0u8; 32];
     domain_padded[28..32].copy_from_slice(&DOMAIN_SEPARATOR_BYTES);
@@ -289,34 +288,6 @@ fn private_key_to_address(signing_key: &SigningKey) -> Result<([u8; 20], [u8; 32
     Ok((address, pub_key_x, pub_key_y))
 }
 
-/// Validates that a private key is within the valid range for secp256k1.
-///
-/// The key must be non-zero and less than the curve order n.
-///
-/// # Arguments
-/// * `key_bytes` - 32-byte private key (big-endian)
-///
-/// # Errors
-/// Returns an error if the key is zero or >= curve order
-#[inline]
-fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
-    if key_bytes == &[0u8; 32] {
-        anyhow::bail!("Private key cannot be zero");
-    }
-
-    for i in 0..32 {
-        match key_bytes[i].cmp(&SECP256K1_ORDER[i]) {
-            std::cmp::Ordering::Less => return Ok(()),
-            std::cmp::Ordering::Greater => {
-                anyhow::bail!("Private key must be less than secp256k1 curve order");
-            }
-            std::cmp::Ordering::Equal => continue,
-        }
-    }
-
-    anyhow::bail!("Private key must be less than secp256k1 curve order");
-}
-
 pub fn run(mut cli: Cli) -> Result<()> {
     println!("Validating Merkle root...");
     let merkle_root = validate_merkle_root(&cli.root).context("Invalid Merkle root")?;
@@ -469,6 +440,7 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use airdrop_cli::SECP256K1_ORDER;
 
     #[test]
     fn test_compute_nullifier_deterministic() {

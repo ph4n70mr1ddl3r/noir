@@ -417,16 +417,20 @@ contract Airdrop is ReentrancyGuard {
     /// @return _maxClaims Maximum allowed claims
     /// @return _remainingClaims Remaining claims allowed
     /// @return _isPaused Whether the contract is paused
-    function claimInfo() external view returns (
-        address _token,
-        bytes32 _merkleRoot,
-        uint256 _claimAmount,
-        uint256 _totalClaimed,
-        uint256 _claimCount,
-        uint256 _maxClaims,
-        uint256 _remainingClaims,
-        bool _isPaused
-    ) {
+    function claimInfo()
+        external
+        view
+        returns (
+            address _token,
+            bytes32 _merkleRoot,
+            uint256 _claimAmount,
+            uint256 _totalClaimed,
+            uint256 _claimCount,
+            uint256 _maxClaims,
+            uint256 _remainingClaims,
+            bool _isPaused
+        )
+    {
         _token = address(token);
         _merkleRoot = merkleRoot;
         _claimAmount = CLAIM_AMOUNT;
