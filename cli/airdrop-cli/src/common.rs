@@ -74,6 +74,7 @@ pub fn parse_address(addr_str: &str) -> Result<[u8; 20], CommonError> {
 /// # Returns
 /// 32-byte hash result
 #[must_use]
+#[inline]
 pub fn keccak256_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
     let hash = Keccak256::new()
         .chain_update(left)
@@ -90,6 +91,7 @@ pub fn keccak256_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
 /// # Returns
 /// Hex string with "0x" prefix
 #[must_use]
+#[inline]
 pub fn hex_encode<T: AsRef<[u8]>>(data: T) -> String {
     format!("0x{}", hex::encode(data.as_ref()))
 }
@@ -127,9 +129,10 @@ pub fn validate_merkle_root(root: &str) -> Result<[u8; 32], CommonError> {
 /// # Returns
 /// 32-byte Merkle leaf
 #[must_use]
-pub fn address_to_leaf(address: &[u8; 20]) -> [u8; 32] {
+#[inline]
+pub fn address_to_leaf(address: [u8; 20]) -> [u8; 32] {
     let mut leaf = [0u8; 32];
-    leaf[12..32].copy_from_slice(address);
+    leaf[12..32].copy_from_slice(&address);
     leaf
 }
 
@@ -309,7 +312,7 @@ mod tests {
     #[test]
     fn test_address_to_leaf() {
         let address: [u8; 20] = [1u8; 20];
-        let leaf = address_to_leaf(&address);
+        let leaf = address_to_leaf(address);
         assert_eq!(leaf[0..12], [0u8; 12]);
         assert_eq!(leaf[12..32], address);
     }

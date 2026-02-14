@@ -144,12 +144,12 @@ fn generate_noir_proof(
 }
 
 #[cfg(not(feature = "mock-proofs"))]
+#[allow(unused_variables)]
 fn generate_noir_proof(
     claim: &ClaimInput,
-    _private_key: &[u8; 32],
-    _circuit_path: &Path,
+    private_key: &[u8; 32],
+    circuit_path: &Path,
 ) -> Result<ProofOutput> {
-    let _ = (&claim.merkle_root, &claim.recipient, &claim.nullifier);
     anyhow::bail!(
         "Real proof generation not yet implemented. Please use the 'mock-proofs' feature for development only."
     );

@@ -96,7 +96,7 @@ pub fn run(cli: Cli) -> Result<()> {
 
         let address = airdrop_cli::parse_address(trimmed)
             .with_context(|| format!("Invalid address format at line {}", line_num + 1))?;
-        let leaf = address_to_leaf(&address);
+        let leaf = address_to_leaf(address);
         if index_map.contains_key(&address) {
             anyhow::bail!(
                 "Duplicate address found at line {}: 0x{}",
