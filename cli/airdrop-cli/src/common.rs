@@ -38,6 +38,7 @@ pub enum CommonError {
     #[error("Encountered empty level {0} in Merkle tree")]
     EmptyLevel(usize),
 
+    #[allow(dead_code)]
     #[error("Sibling index {0} is out of bounds for level {1} with {2} nodes")]
     SiblingIndexOutOfBounds(usize, usize, usize),
 }

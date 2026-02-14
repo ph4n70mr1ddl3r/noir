@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use anyhow::{Context, Result};
 use clap::Parser;
 use k256::ecdsa::SigningKey;
@@ -19,35 +21,35 @@ const SECP256K1_ORDER: [u8; 32] = [
     0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36, 0x41, 0x41,
 ];
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(name = "claim")]
 #[command(about = "Generate airdrop claim proof", long_about = None)]
 #[command(version)]
-struct Cli {
+pub struct Cli {
     /// Path to Merkle tree file
     #[arg(short = 't', long)]
-    tree: PathBuf,
+    pub tree: PathBuf,
 
     /// Path to index map file
     #[arg(short = 'i', long)]
-    index_map: PathBuf,
+    pub index_map: PathBuf,
 
     /// Private key (hex format, with or without 0x prefix)
     /// Alternatively, use "-" to read from stdin (more secure)
     #[arg(short = 'k', long)]
-    private_key: String,
+    pub private_key: String,
 
     /// Recipient address (where to receive tokens)
     #[arg(short = 'r', long)]
-    recipient: String,
+    pub recipient: String,
 
     /// Output JSON file
     #[arg(short, long)]
-    output: PathBuf,
+    pub output: PathBuf,
 
     /// Merkle root (hex format)
     #[arg(short, long)]
-    root: String,
+    pub root: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -263,9 +265,7 @@ fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<()> {
     anyhow::bail!("Private key must be less than secp256k1 curve order");
 }
 
-fn main() -> Result<()> {
-    let mut cli = Cli::parse();
-
+pub fn run(mut cli: Cli) -> Result<()> {
     println!("Validating Merkle root...");
     let merkle_root = validate_merkle_root(&cli.root).context("Invalid Merkle root")?;
 
@@ -387,6 +387,10 @@ fn main() -> Result<()> {
     println!("Nullifier: {}", hex_encode(nullifier));
     println!("Proof length: {} nodes", merkle_proof.len());
     Ok(())
+}
+
+fn main() -> Result<()> {
+    run(Cli::parse())
 }
 
 #[cfg(test)]

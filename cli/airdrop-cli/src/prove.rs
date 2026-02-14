@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use anyhow::{Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -7,28 +9,28 @@ use zeroize::Zeroize;
 
 use airdrop_cli::write_file_atomic;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(name = "prove")]
 #[command(about = "Generate Noir proof from claim JSON", long_about = None)]
 #[command(version)]
-struct Cli {
+pub struct Cli {
     /// Input claim JSON file
     #[arg(short, long)]
-    input: PathBuf,
+    pub input: PathBuf,
 
     /// Private key (hex format, with or without 0x prefix)
     /// Alternatively, use "-" to read from stdin (more secure)
     /// Required for real proof generation; optional for mock proofs
     #[arg(short = 'k', long)]
-    private_key: Option<String>,
+    pub private_key: Option<String>,
 
     /// Noir circuit directory
     #[arg(short = 'c', long)]
-    circuit: PathBuf,
+    pub circuit: PathBuf,
 
     /// Output proof file
     #[arg(short, long)]
-    output: PathBuf,
+    pub output: PathBuf,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,9 +155,7 @@ fn read_private_key(key_opt: Option<&String>) -> Result<[u8; 32]> {
     parse_private_key(&key_str)
 }
 
-fn main() -> Result<()> {
-    let cli = Cli::parse();
-
+pub fn run(cli: &Cli) -> Result<()> {
     #[cfg(feature = "mock-proofs")]
     {
         eprintln!();
@@ -189,6 +189,10 @@ fn main() -> Result<()> {
     println!("Public inputs: {:?}", proof_output.public_inputs);
 
     Ok(())
+}
+
+fn main() -> Result<()> {
+    run(&Cli::parse())
 }
 
 #[cfg(test)]

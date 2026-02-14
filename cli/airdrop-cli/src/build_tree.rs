@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use airdrop_cli::{address_to_leaf, hex_encode, keccak256_hash, write_file_atomic, MERKLE_DEPTH};
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -12,26 +14,26 @@ const ESTIMATED_MEMORY_PER_ADDRESS: usize = 164;
 type MerkleTreeLevel = Vec<[u8; 32]>;
 type MerkleTree = Vec<MerkleTreeLevel>;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(name = "build-tree")]
 #[command(about = "Build Merkle tree from qualified accounts", long_about = None)]
 #[command(version)]
-struct Cli {
+pub struct Cli {
     /// Input file containing Ethereum addresses (one per line)
     #[arg(short, long)]
-    input: PathBuf,
+    pub input: PathBuf,
 
     /// Output file for Merkle root
     #[arg(short, long)]
-    root_output: PathBuf,
+    pub root_output: PathBuf,
 
     /// Output file for index map (address -> leaf index)
     #[arg(short, long)]
-    index_output: PathBuf,
+    pub index_output: PathBuf,
 
     /// Output file for Merkle tree (for proof generation)
     #[arg(short, long)]
-    tree_output: Option<PathBuf>,
+    pub tree_output: Option<PathBuf>,
 }
 
 /// Builds a Merkle tree from a list of leaf hashes.
@@ -76,9 +78,7 @@ pub fn build_merkle_tree(leaves: MerkleTreeLevel) -> Result<(MerkleTree, [u8; 32
     Ok((tree, root))
 }
 
-fn main() -> Result<()> {
-    let cli = Cli::parse();
-
+pub fn run(cli: Cli) -> Result<()> {
     println!("Reading addresses from {:?}...", cli.input);
     let file = File::open(&cli.input).context("Failed to open input file")?;
     let reader = BufReader::new(file);
@@ -160,6 +160,10 @@ fn main() -> Result<()> {
 
     println!("Done!");
     Ok(())
+}
+
+fn main() -> Result<()> {
+    run(Cli::parse())
 }
 
 #[cfg(test)]

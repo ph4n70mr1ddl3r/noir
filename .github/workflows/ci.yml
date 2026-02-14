@@ -94,3 +94,24 @@ jobs:
       - name: Run cargo build
         run: cargo build --release
         working-directory: cli/airdrop-cli
+
+  noir:
+    name: Noir Circuit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Noir
+        run: |
+          curl -L https://raw.githubusercontent.com/noir-lang/noir/main/install_nargo.sh | bash
+          echo "$HOME/.nargo/bin" >> $GITHUB_PATH
+
+      - name: Compile Noir circuit
+        run: |
+          cd circuits/airdrop
+          nargo compile
+
+      - name: Check Noir circuit
+        run: |
+          cd circuits/airdrop
+          nargo check
