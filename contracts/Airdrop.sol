@@ -121,10 +121,11 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Initializes the airdrop contract
-    /// @param _token The ERC20 token to distribute
-    /// @param _verifier The Noir UltraVerifier contract address
-    /// @param _merkleRoot The root of the Merkle tree containing qualified addresses
-    /// @param _maxClaims Maximum number of claims allowed
+    /// @dev Sets up the token, verifier, merkle root, and max claims. Emits RootInitialized and MaxClaimsSet events.
+    /// @param _token The ERC20 token to distribute (must not be zero address)
+    /// @param _verifier The Noir UltraVerifier contract address (must not be zero address)
+    /// @param _merkleRoot The root of the Merkle tree containing qualified addresses (must not be zero)
+    /// @param _maxClaims Maximum number of claims allowed (must be greater than zero)
     constructor(address _token, address _verifier, bytes32 _merkleRoot, uint256 _maxClaims) {
         if (_token == address(0)) revert InvalidToken();
         if (_verifier == address(0)) revert InvalidVerifier();
@@ -156,7 +157,9 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Initiates two-step ownership transfer
-    /// @param newOwner Address of the proposed new owner
+    /// @dev Sets pendingOwner without transferring ownership immediately.
+    ///      The new owner must call acceptOwnership to complete the transfer.
+    /// @param newOwner Address of the proposed new owner (must not be zero address)
     function transferOwnership(address newOwner) external onlyOwner {
         if (newOwner == address(0)) revert InvalidRecipient();
         pendingOwner = newOwner;
@@ -220,12 +223,14 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Pauses all claim operations
+    /// @dev Only callable by owner. Reverts if already paused.
     function pause() external onlyOwner whenNotPaused {
         paused = true;
         emit Paused(msg.sender);
     }
 
     /// @notice Resumes claim operations
+    /// @dev Only callable by owner. Reverts if not currently paused.
     function unpause() external onlyOwner whenPaused {
         paused = false;
         emit Unpaused(msg.sender);
@@ -312,6 +317,7 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Withdraws tokens to owner after timelock expires
+    /// @dev Subject to 2-day timelock. Must call scheduleWithdrawTokens first.
     /// @param amount Amount of tokens to withdraw
     function withdrawTokens(uint256 amount) external onlyOwner {
         bytes32 operationHash = _hashOperation(abi.encode("withdrawTokens", amount));
@@ -320,7 +326,8 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Schedules a token withdrawal operation
-    /// @param amount Amount of tokens to withdraw
+    /// @dev Subject to 2-day timelock before withdrawal can be executed.
+    /// @param amount Amount of tokens to withdraw (must not exceed contract balance)
     function scheduleWithdrawTokens(uint256 amount) external onlyOwner {
         if (amount > token.balanceOf(address(this))) revert InsufficientBalanceForWithdraw();
         bytes32 operationHash = _hashOperation(abi.encode("withdrawTokens", amount));
