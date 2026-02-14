@@ -7,6 +7,7 @@ merkle_root.txt
 circuits/*/target/
 circuits/*/*.json
 circuits/*/*.sol
+circuits/*/Prover.toml
 
 # Rust
 target/

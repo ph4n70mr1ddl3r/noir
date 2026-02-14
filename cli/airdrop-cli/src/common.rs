@@ -32,7 +32,7 @@ pub enum CommonError {
     #[error("Merkle tree is empty")]
     EmptyTree,
 
-    #[error("Leaf index {0} is out of bounds for tree with {1} leaves")]
+    #[error("Leaf index {0} is out of bounds for tree with {1} leaves (valid range: 0..{})", .1.saturating_sub(1))]
     LeafIndexOutOfBounds(usize, usize),
 
     #[error("Encountered empty level {0} in Merkle tree")]
@@ -405,6 +405,13 @@ mod tests {
             result,
             Err(CommonError::LeafIndexOutOfBounds(5, 2))
         ));
+        if let Err(CommonError::LeafIndexOutOfBounds(idx, len)) = result {
+            assert_eq!(idx, 5);
+            assert_eq!(len, 2);
+            let msg = format!("{}", CommonError::LeafIndexOutOfBounds(5, 2));
+            assert!(msg.contains("5"));
+            assert!(msg.contains("2"));
+        }
     }
 
     #[test]

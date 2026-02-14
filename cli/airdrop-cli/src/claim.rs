@@ -425,6 +425,14 @@ pub fn run(mut cli: Cli) -> Result<()> {
     let json_output = serde_json::to_string_pretty(&claim).context("Failed to serialize JSON")?;
     write_file_atomic(&cli.output, &json_output).context("Failed to write claim file")?;
 
+    eprintln!();
+    eprintln!("SECURITY WARNING: The output file contains sensitive data including:");
+    eprintln!("  - Your private key (in little-endian format)");
+    eprintln!("  - Your signature");
+    eprintln!("  - Your nullifier");
+    eprintln!("Store this file securely and delete it after use. Anyone with access to");
+    eprintln!("this file can potentially compromise your account.");
+
     println!("\nClaim generated successfully!");
     println!("Claimer address: {}", hex_encode(claimer_address));
     println!("Recipient: {}", hex_encode(recipient));

@@ -9,6 +9,9 @@ use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
 const MAX_ADDRESSES: usize = 1 << MERKLE_DEPTH;
+/// Estimated memory usage per address in bytes.
+/// Breakdown: 32 bytes (leaf hash) + 32 bytes (HashMap entry overhead) +
+/// ~100 bytes (HashMap bucket + allocation overhead) = ~164 bytes
 const ESTIMATED_MEMORY_PER_ADDRESS: usize = 164;
 
 type MerkleTreeLevel = Vec<[u8; 32]>;

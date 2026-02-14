@@ -43,7 +43,11 @@ contract ReentrancyGuard {
 /// Must match the value in Noir circuit (main.nr) and CLI (common.rs).
 contract Airdrop is ReentrancyGuard {
     /// @notice Domain separator for nullifier computation (bytes 28-31 of 32-byte array)
-    /// @dev Used to prevent cross-context replay attacks. Must match CLI and circuit.
+    /// @dev This constant is stored for on-chain verification purposes and documentation.
+    ///      The actual nullifier computation happens in the Noir circuit, not in this contract.
+    ///      The contract only verifies that the nullifier hasn't been used before.
+    ///      Must match the value in Noir circuit (main.nr) and CLI (common.rs).
+    ///      Value: 0xa1b2c3d4 placed at bytes 28-31 of a 32-byte array.
     bytes4 public constant DOMAIN_SEPARATOR = 0xa1b2c3d4;
 
     error NullifierAlreadyUsed();
@@ -279,8 +283,8 @@ contract Airdrop is ReentrancyGuard {
         if (!isValid) revert InvalidProof();
 
         usedNullifiers[nullifier] = true;
-        totalClaimed += CLAIM_AMOUNT;
         unchecked {
+            totalClaimed += CLAIM_AMOUNT;
             ++claimCount;
         }
 
