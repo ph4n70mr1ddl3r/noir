@@ -65,10 +65,10 @@ const DOMAIN_SEPARATOR_BYTES: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 /// Computes a nullifier from a private key to prevent double-claiming.
 ///
 /// Uses Keccak256 with a domain separator for cryptographic strength.
-/// Consistent with Noir circuit implementation which uses to_le_bytes().
+/// The private key is converted to little-endian to match Noir's `to_le_bytes()`.
 ///
 /// # Arguments
-/// * `private_key_bytes` - 32-byte private key (big-endian hex format)
+/// * `private_key_bytes` - 32-byte private key (big-endian format as typical for Ethereum)
 ///
 /// # Returns
 /// 32-byte nullifier hash

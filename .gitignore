@@ -9,7 +9,6 @@ circuits/*/*.sol
 
 # Rust
 target/
-Cargo.lock
 
 # Node
 node_modules/

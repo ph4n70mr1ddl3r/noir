@@ -124,6 +124,16 @@ contract AirdropTest is Test {
         airdrop.claim(_mockProof(), nullifier, address(0));
     }
 
+    function testClaimToContractAddress() public {
+        bytes32 nullifier = bytes32(uint256(456));
+
+        verifier.setVerify(true);
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.ClaimToContract.selector);
+        airdrop.claim(_mockProof(), nullifier, address(airdrop));
+    }
+
     function testClaimMaxClaimsExceeded() public {
         verifier.setVerify(true);
 

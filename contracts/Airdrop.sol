@@ -63,6 +63,7 @@ contract Airdrop is ReentrancyGuard {
     error EthNotAccepted();
     error UnknownFunction();
     error InsufficientBalanceForWithdraw();
+    error ClaimToContract();
 
     address public owner;
     address public pendingOwner;
@@ -198,9 +199,11 @@ contract Airdrop is ReentrancyGuard {
     {
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
         if (recipient == address(0)) revert InvalidRecipient();
+        if (recipient == address(this)) revert ClaimToContract();
         if (proof.length == 0) revert EmptyProof();
 
         if (claimCount >= maxClaims) revert MaxClaimsExceeded();
+        if (token.balanceOf(address(this)) < CLAIM_AMOUNT) revert InsufficientBalance();
 
         uint256[] memory publicInputs = new uint256[](3);
         publicInputs[0] = uint256(merkleRoot);
