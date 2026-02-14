@@ -16,6 +16,8 @@ use airdrop_cli::{
     write_file_atomic, DOMAIN_SEPARATOR_BYTES, MERKLE_DEPTH, SECP256K1_ORDER,
 };
 
+use k256::ecdsa::signature::Signer;
+
 #[derive(Parser, Debug)]
 #[command(name = "claim")]
 #[command(about = "Generate airdrop claim proof", long_about = None)]
@@ -56,6 +58,10 @@ struct ClaimOutput {
     merkle_indices: Vec<bool>,
     leaf_index: usize,
     claimer_address: String,
+    private_key_le_bytes: String,
+    public_key_x: String,
+    public_key_y: String,
+    signature: String,
 }
 
 /// Computes a nullifier from a private key to prevent double-claiming.
@@ -267,14 +273,20 @@ fn load_merkle_tree(path: &Path) -> Result<Vec<Vec<[u8; 32]>>> {
 /// # Returns
 /// 20-byte Ethereum address
 #[inline]
-fn private_key_to_address(signing_key: &SigningKey) -> Result<[u8; 20]> {
+fn private_key_to_address(signing_key: &SigningKey) -> Result<([u8; 20], [u8; 32], [u8; 32])> {
     let public_key = signing_key.verifying_key();
     let encoded = public_key.to_encoded_point(false);
     let pub_bytes = encoded.as_bytes();
+
+    let mut pub_key_x = [0u8; 32];
+    let mut pub_key_y = [0u8; 32];
+    pub_key_x.copy_from_slice(&pub_bytes[1..33]);
+    pub_key_y.copy_from_slice(&pub_bytes[33..65]);
+
     let hash = Keccak256::digest(&pub_bytes[1..]);
     let mut address = [0u8; 20];
     address.copy_from_slice(&hash[12..32]);
-    Ok(address)
+    Ok((address, pub_key_x, pub_key_y))
 }
 
 /// Validates that a private key is within the valid range for secp256k1.
@@ -364,11 +376,23 @@ pub fn run(mut cli: Cli) -> Result<()> {
     let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;
 
     println!("Deriving address from private key...");
-    let claimer_address = private_key_to_address(&signing_key)?;
-    drop(signing_key);
+    let (claimer_address, public_key_x, public_key_y) = private_key_to_address(&signing_key)?;
 
     println!("Computing nullifier...");
     let nullifier = compute_nullifier(&private_key_bytes)?;
+
+    let mut private_key_le_bytes = private_key_bytes;
+    private_key_le_bytes.reverse();
+
+    println!("Signing claimer address...");
+    let mut message: [u8; 32] = [0u8; 32];
+    message[12..32].copy_from_slice(&claimer_address);
+    let message_hash = Keccak256::digest(message);
+    let signature: k256::ecdsa::Signature = signing_key.sign(&message_hash);
+    let sig_bytes = signature.to_bytes();
+    let mut signature_bytes: [u8; 64] = [0u8; 64];
+    signature_bytes.copy_from_slice(&sig_bytes);
+
     private_key_bytes.zeroize();
 
     println!("Looking up address in index map...");
@@ -420,6 +444,10 @@ pub fn run(mut cli: Cli) -> Result<()> {
         merkle_indices,
         leaf_index,
         claimer_address: hex_encode(claimer_address),
+        private_key_le_bytes: hex_encode(private_key_le_bytes),
+        public_key_x: hex_encode(public_key_x),
+        public_key_y: hex_encode(public_key_y),
+        signature: hex_encode(signature_bytes),
     };
 
     println!("Writing claim JSON to {:?}...", cli.output);
@@ -496,9 +524,11 @@ mod tests {
     fn test_private_key_to_address() {
         let key_bytes = [1u8; 32];
         let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
-        let address = private_key_to_address(&signing_key).unwrap();
+        let (address, pub_x, pub_y) = private_key_to_address(&signing_key).unwrap();
         assert_eq!(address.len(), 20);
         assert_ne!(address, [0u8; 20]);
+        assert_eq!(pub_x.len(), 32);
+        assert_eq!(pub_y.len(), 32);
     }
 
     #[test]
@@ -506,7 +536,7 @@ mod tests {
         let mut key_bytes = [0u8; 32];
         key_bytes[31] = 0x01;
         let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
-        let address = private_key_to_address(&signing_key).unwrap();
+        let (address, _, _) = private_key_to_address(&signing_key).unwrap();
         let expected: [u8; 20] = [
             0x7E, 0x5F, 0x45, 0x52, 0x09, 0x1A, 0x69, 0x12, 0x5D, 0x5D, 0xFC, 0xB7, 0xB8, 0xC2,
             0x65, 0x90, 0x29, 0x39, 0x5B, 0xDF,
@@ -518,12 +548,14 @@ mod tests {
     fn test_private_key_to_address_deterministic() {
         let key_bytes = [42u8; 32];
         let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
-        let address1 = private_key_to_address(&signing_key).unwrap();
+        let (address1, pub_x1, pub_y1) = private_key_to_address(&signing_key).unwrap();
 
         let signing_key2 = SigningKey::from_slice(&key_bytes).unwrap();
-        let address2 = private_key_to_address(&signing_key2).unwrap();
+        let (address2, pub_x2, pub_y2) = private_key_to_address(&signing_key2).unwrap();
 
         assert_eq!(address1, address2);
+        assert_eq!(pub_x1, pub_x2);
+        assert_eq!(pub_y1, pub_y2);
     }
 
     #[test]

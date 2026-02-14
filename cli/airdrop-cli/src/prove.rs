@@ -46,6 +46,14 @@ struct ClaimInput {
     leaf_index: usize,
     #[allow(dead_code)]
     claimer_address: String,
+    #[allow(dead_code)]
+    private_key_le_bytes: String,
+    #[allow(dead_code)]
+    public_key_x: String,
+    #[allow(dead_code)]
+    public_key_y: String,
+    #[allow(dead_code)]
+    signature: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -390,7 +398,11 @@ mod tests {
             "merkle_proof": ["0x1111111111111111111111111111111111111111111111111111111111111111"],
             "merkle_indices": [true],
             "leaf_index": 0,
-            "claimer_address": "0x1234567890abcdef1234567890abcdef12345678"
+            "claimer_address": "0x1234567890abcdef1234567890abcdef12345678",
+            "private_key_le_bytes": "0x0100000000000000000000000000000000000000000000000000000000000000",
+            "public_key_x": "0x2222222222222222222222222222222222222222222222222222222222222222",
+            "public_key_y": "0x3333333333333333333333333333333333333333333333333333333333333333",
+            "signature": "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444"
         }"#;
         let claim: ClaimInput = serde_json::from_str(json).unwrap();
         assert_eq!(
@@ -420,6 +432,10 @@ mod tests {
             merkle_indices: vec![],
             leaf_index: 0,
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
+            public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
+            signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
         };
         let private_key = [1u8; 32];
         let result = generate_noir_proof(&claim, &private_key, temp_dir.path());
@@ -449,6 +465,10 @@ mod tests {
             merkle_indices: vec![],
             leaf_index: 0,
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
+            public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
+            signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
         };
         let private_key = [0u8; 32];
         let result = generate_noir_proof(&claim, &private_key, temp_dir.path());
@@ -470,6 +490,10 @@ mod tests {
             merkle_indices: vec![],
             leaf_index: 0,
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
+            public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
+            signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
         };
         let private_key = [1u8; 32];
         let result = generate_noir_proof(&claim, &private_key, temp_dir.path());

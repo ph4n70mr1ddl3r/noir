@@ -1,6 +1,7 @@
 # Merkle tree files (large)
 merkle_tree.txt
 index_map.txt
+merkle_root.txt
 
 # Noir build artifacts
 circuits/*/target/
