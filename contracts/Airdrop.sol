@@ -370,6 +370,7 @@ contract Airdrop is ReentrancyGuard {
     /// @notice Cancels a scheduled timelocked operation
     /// @param operationHash The hash of the operation to cancel
     /// @dev Only callable by owner. Cannot cancel already executed or cancelled operations.
+    ///      The operation hash is computed using keccak256(abi.encode(operationName, params...)).
     function cancelOperation(bytes32 operationHash) external onlyOwner {
         if (executedOperations[operationHash]) revert OperationAlreadyExecuted();
         if (cancelledOperations[operationHash]) revert OperationAlreadyCancelled();

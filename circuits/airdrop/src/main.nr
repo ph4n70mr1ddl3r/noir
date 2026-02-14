@@ -123,6 +123,59 @@ fn verify_private_key_ownership(
     assert(is_valid);
 }
 
+global SECP256K1_ORDER_BYTE_15: u8 = 0xFE;
+global SECP256K1_ORDER_BYTE_16: u8 = 0xBA;
+global SECP256K1_ORDER_BYTE_17: u8 = 0xAE;
+global SECP256K1_ORDER_BYTE_18: u8 = 0xDC;
+global SECP256K1_ORDER_BYTE_19: u8 = 0xE6;
+global SECP256K1_ORDER_BYTE_20: u8 = 0xAF;
+global SECP256K1_ORDER_BYTE_21: u8 = 0x48;
+global SECP256K1_ORDER_BYTE_22: u8 = 0xA0;
+global SECP256K1_ORDER_BYTE_23: u8 = 0x3B;
+global SECP256K1_ORDER_BYTE_24: u8 = 0xBF;
+global SECP256K1_ORDER_BYTE_25: u8 = 0xD2;
+global SECP256K1_ORDER_BYTE_26: u8 = 0x5E;
+global SECP256K1_ORDER_BYTE_27: u8 = 0x8C;
+global SECP256K1_ORDER_BYTE_28: u8 = 0xD0;
+global SECP256K1_ORDER_BYTE_29: u8 = 0x36;
+global SECP256K1_ORDER_BYTE_30: u8 = 0x41;
+global SECP256K1_ORDER_BYTE_31: u8 = 0x41;
+
+fn validate_private_key_range(private_key_le_bytes: [u8; 32]) {
+    let secp_order_le: [u8; 32] = [
+        SECP256K1_ORDER_BYTE_31, SECP256K1_ORDER_BYTE_30, SECP256K1_ORDER_BYTE_29,
+        SECP256K1_ORDER_BYTE_28, SECP256K1_ORDER_BYTE_27, SECP256K1_ORDER_BYTE_26,
+        SECP256K1_ORDER_BYTE_25, SECP256K1_ORDER_BYTE_24, SECP256K1_ORDER_BYTE_23,
+        SECP256K1_ORDER_BYTE_22, SECP256K1_ORDER_BYTE_21, SECP256K1_ORDER_BYTE_20,
+        SECP256K1_ORDER_BYTE_19, SECP256K1_ORDER_BYTE_18, SECP256K1_ORDER_BYTE_17,
+        SECP256K1_ORDER_BYTE_16, SECP256K1_ORDER_BYTE_15, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    ];
+
+    let mut key_exceeds: bool = false;
+    let mut all_equal_so_far: bool = true;
+
+    for i in 0..32 {
+        let key_byte = private_key_le_bytes[i];
+        let order_byte = secp_order_le[i];
+
+        if all_equal_so_far {
+            if key_byte > order_byte {
+                key_exceeds = true;
+            }
+            if key_byte != order_byte {
+                all_equal_so_far = false;
+            }
+        }
+    }
+
+    if all_equal_so_far {
+        key_exceeds = true;
+    }
+
+    assert(!key_exceeds);
+}
+
 fn main(
     merkle_root: Field,
     recipient: Field,
@@ -146,6 +199,8 @@ fn main(
         }
     }
     assert(is_nonzero);
+
+    validate_private_key_range(private_key_le_bytes);
 
     verify_private_key_ownership(
         public_key_x,

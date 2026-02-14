@@ -421,6 +421,13 @@ pub fn run(mut cli: Cli) -> Result<()> {
         signature: hex_encode(signature_bytes),
     };
 
+    if cli.output.exists() {
+        eprintln!(
+            "WARNING: Output file {:?} already exists and will be overwritten.",
+            cli.output
+        );
+    }
+
     println!("Writing claim JSON to {:?}...", cli.output);
     let json_output = serde_json::to_string_pretty(&claim).context("Failed to serialize JSON")?;
     write_file_atomic(&cli.output, &json_output).context("Failed to write claim file")?;
@@ -582,5 +589,100 @@ mod tests {
         let mut edge_key = [0xFFu8; 32];
         edge_key[15] = 0xFF;
         assert!(validate_private_key_range(&edge_key).is_err());
+    }
+
+    #[test]
+    fn test_load_index_map_invalid_format() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let index_path = temp_dir.path().join("invalid_index.txt");
+        let mut file = std::fs::File::create(&index_path).unwrap();
+        writeln!(file, "invalid_format_without_colon").unwrap();
+        drop(file);
+
+        let result = load_index_map(&index_path);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expected 'address:index'"));
+    }
+
+    #[test]
+    fn test_load_index_map_duplicate_address() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let index_path = temp_dir.path().join("dup_index.txt");
+        let mut file = std::fs::File::create(&index_path).unwrap();
+        writeln!(file, "0x1234567890123456789012345678901234567890:0").unwrap();
+        writeln!(file, "0x1234567890123456789012345678901234567890:1").unwrap();
+        drop(file);
+
+        let result = load_index_map(&index_path);
+        assert!(result.is_ok());
+        let map = result.unwrap();
+        assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    fn test_load_merkle_tree_invalid_level_format() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let tree_path = temp_dir.path().join("invalid_tree.txt");
+        let mut file = std::fs::File::create(&tree_path).unwrap();
+        writeln!(file, "invalid_line_without_colons").unwrap();
+        drop(file);
+
+        let result = load_merkle_tree(&tree_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_merkle_tree_duplicate_entry() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let tree_path = temp_dir.path().join("dup_tree.txt");
+        let mut file = std::fs::File::create(&tree_path).unwrap();
+        writeln!(
+            file,
+            "0:0:0x1234567890123456789012345678901234567890123456789012345678901234"
+        )
+        .unwrap();
+        writeln!(
+            file,
+            "0:0:0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        )
+        .unwrap();
+        drop(file);
+
+        let result = load_merkle_tree(&tree_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Duplicate entry"));
+    }
+
+    #[test]
+    fn test_load_merkle_tree_non_contiguous_indices() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let tree_path = temp_dir.path().join("noncontig_tree.txt");
+        let mut file = std::fs::File::create(&tree_path).unwrap();
+        writeln!(
+            file,
+            "0:0:0x1234567890123456789012345678901234567890123456789012345678901234"
+        )
+        .unwrap();
+        writeln!(
+            file,
+            "0:2:0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        )
+        .unwrap();
+        drop(file);
+
+        let result = load_merkle_tree(&tree_path);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Non-contiguous indices"));
     }
 }
