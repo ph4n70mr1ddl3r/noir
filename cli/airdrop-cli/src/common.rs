@@ -409,8 +409,8 @@ mod tests {
             assert_eq!(idx, 5);
             assert_eq!(len, 2);
             let msg = format!("{}", CommonError::LeafIndexOutOfBounds(5, 2));
-            assert!(msg.contains("5"));
-            assert!(msg.contains("2"));
+            assert!(msg.contains('5'));
+            assert!(msg.contains('2'));
         }
     }
 

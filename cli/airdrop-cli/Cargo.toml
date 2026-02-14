@@ -49,6 +49,7 @@ needless_continue = "allow"
 doc_markdown = "allow"
 uninlined_format_args = "allow"
 unnecessary_debug_formatting = "allow"
+single_char_pattern = "allow"
 
 [[bin]]
 name = "airdrop"

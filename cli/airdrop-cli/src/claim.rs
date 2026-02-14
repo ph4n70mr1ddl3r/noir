@@ -528,14 +528,14 @@ mod tests {
     fn test_private_key_to_address_deterministic() {
         let key_bytes = [42u8; 32];
         let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
-        let (address1, pub_x1, pub_y1) = private_key_to_address(&signing_key).unwrap();
+        let (first_address, first_x, first_y) = private_key_to_address(&signing_key).unwrap();
 
         let signing_key2 = SigningKey::from_slice(&key_bytes).unwrap();
-        let (address2, pub_x2, pub_y2) = private_key_to_address(&signing_key2).unwrap();
+        let (second_address, second_x, second_y) = private_key_to_address(&signing_key2).unwrap();
 
-        assert_eq!(address1, address2);
-        assert_eq!(pub_x1, pub_x2);
-        assert_eq!(pub_y1, pub_y2);
+        assert_eq!(first_address, second_address);
+        assert_eq!(first_x, second_x);
+        assert_eq!(first_y, second_y);
     }
 
     #[test]
