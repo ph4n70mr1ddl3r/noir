@@ -405,9 +405,6 @@ pub fn run(mut cli: Cli) -> Result<()> {
 
     println!("Parsing recipient address...");
     let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;
-    if recipient == [0u8; 20] {
-        anyhow::bail!("Recipient address cannot be zero");
-    }
 
     if recipient != claimer_address {
         eprintln!(
