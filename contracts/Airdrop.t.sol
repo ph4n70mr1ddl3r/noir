@@ -206,6 +206,27 @@ contract AirdropTest is Test {
         vm.stopPrank();
     }
 
+    event RootInitialized(bytes32 indexed root);
+    event MaxClaimsSet(uint256 indexed oldMaxClaims, uint256 indexed newMaxClaims);
+    event TokensWithdrawn(address indexed owner, uint256 amount);
+
+    function testConstructorEvents() public {
+        vm.startPrank(owner);
+        MockERC20 newToken = new MockERC20();
+        MockVerifier newVerifier = new MockVerifier();
+        bytes32 newRoot = bytes32(uint256(999));
+
+        vm.expectEmit(true, false, false, true);
+        emit RootInitialized(newRoot);
+        vm.expectEmit(true, false, false, true);
+        emit MaxClaimsSet(0, 500);
+        Airdrop newAirdrop = new Airdrop(address(newToken), address(newVerifier), newRoot, 500);
+
+        assertEq(newAirdrop.merkleRoot(), newRoot);
+        assertEq(newAirdrop.maxClaims(), 500);
+        vm.stopPrank();
+    }
+
     function testSetMaxClaimsTimelock() public {
         uint256 newMaxClaims = 2000;
 
@@ -214,6 +235,8 @@ contract AirdropTest is Test {
 
         // Execute after timelock
         vm.warp(block.timestamp + 2 days + 1);
+        vm.expectEmit(true, false, false, true);
+        emit MaxClaimsSet(MAX_CLAIMS, newMaxClaims);
         airdrop.setMaxClaims(newMaxClaims);
         assertEq(airdrop.maxClaims(), newMaxClaims);
         vm.stopPrank();
@@ -335,6 +358,23 @@ contract AirdropTest is Test {
 
         // Owner should be back to original balance after withdraw
         assertEq(token.balanceOf(owner), ownerBalanceBefore);
+    }
+
+    function testWithdrawTokensEvent() public {
+        uint256 withdrawAmount = 100 * 10 ** 18;
+
+        vm.prank(owner);
+        bool success = token.transfer(address(airdrop), withdrawAmount);
+        assertTrue(success, "Transfer to airdrop failed");
+
+        vm.startPrank(owner);
+        airdrop.scheduleWithdrawTokens(withdrawAmount);
+
+        vm.warp(block.timestamp + 2 days + 1);
+        vm.expectEmit(true, false, false, true);
+        emit TokensWithdrawn(owner, withdrawAmount);
+        airdrop.withdrawTokens(withdrawAmount);
+        vm.stopPrank();
     }
 
     function testScheduleWithdrawTokensInsufficientBalance() public {

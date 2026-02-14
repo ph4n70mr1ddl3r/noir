@@ -93,7 +93,7 @@ contract Airdrop is ReentrancyGuard {
     event RootUpdated(bytes32 indexed oldRoot, bytes32 indexed newRoot);
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event RootInitialized(bytes32 indexed root);
-    event MaxClaimsSet(uint256 maxClaims);
+    event MaxClaimsSet(uint256 indexed oldMaxClaims, uint256 indexed newMaxClaims);
     event TimelockScheduled(bytes32 indexed operationHash, uint256 executeAfter);
     event OperationExecuted(bytes32 indexed operationHash);
     event OperationCancelled(bytes32 indexed operationHash);
@@ -101,6 +101,7 @@ contract Airdrop is ReentrancyGuard {
     event PendingOwnerSet(address indexed pendingOwner);
     event Paused(address indexed account);
     event Unpaused(address indexed account);
+    event TokensWithdrawn(address indexed owner, uint256 amount);
 
     modifier whenNotPaused() {
         _checkNotPaused();
@@ -137,7 +138,7 @@ contract Airdrop is ReentrancyGuard {
         merkleRoot = _merkleRoot;
         maxClaims = _maxClaims;
         emit RootInitialized(_merkleRoot);
-        emit MaxClaimsSet(_maxClaims);
+        emit MaxClaimsSet(0, _maxClaims);
     }
 
     modifier onlyOwner() {
@@ -312,8 +313,9 @@ contract Airdrop is ReentrancyGuard {
         if (_maxClaims < claimCount) revert MaxClaimsBelowCurrent();
         bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
         _executeTimelockedOperation(operationHash);
+        uint256 oldMaxClaims = maxClaims;
         maxClaims = _maxClaims;
-        emit MaxClaimsSet(_maxClaims);
+        emit MaxClaimsSet(oldMaxClaims, _maxClaims);
     }
 
     /// @notice Withdraws tokens to owner after timelock expires
@@ -340,6 +342,7 @@ contract Airdrop is ReentrancyGuard {
             address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, owner, amount));
         if (!success) revert TransferFailed();
         if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
+        emit TokensWithdrawn(owner, amount);
     }
 
     /// @notice Schedules a timelocked operation
