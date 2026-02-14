@@ -367,6 +367,15 @@ pub fn run(mut cli: Cli) -> Result<()> {
         anyhow::bail!("Recipient address cannot be zero");
     }
 
+    if recipient != claimer_address {
+        eprintln!(
+            "WARNING: Recipient address ({}) differs from claimer address ({}). \
+             Tokens will be sent to the recipient, not to the address derived from your private key.",
+            hex_encode(recipient),
+            hex_encode(claimer_address)
+        );
+    }
+
     let claim = ClaimOutput {
         merkle_root: hex_encode(merkle_root),
         recipient: hex_encode(recipient),

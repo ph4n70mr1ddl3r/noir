@@ -37,10 +37,6 @@ pub enum CommonError {
 
     #[error("Encountered empty level {0} in Merkle tree")]
     EmptyLevel(usize),
-
-    #[allow(dead_code)]
-    #[error("Sibling index {0} is out of bounds for level {1} with {2} nodes")]
-    SiblingIndexOutOfBounds(usize, usize, usize),
 }
 
 /// Parses an Ethereum address from a hex string.
@@ -236,7 +232,7 @@ pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> anyhow::Resu
     use std::io::Write;
 
     let path = path.as_ref();
-    let temp_path = path.with_extension("tmp");
+    let temp_path = path.with_extension(format!("{}.tmp", std::process::id()));
 
     #[cfg(unix)]
     {
