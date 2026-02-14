@@ -52,8 +52,8 @@ contract Airdrop is ReentrancyGuard {
     error OperationNotScheduled();
     error OperationAlreadyExecuted();
     error InvalidMaxClaims();
-    error OperationAlreadyCancelled();
     error OperationAlreadyScheduled();
+    error OperationAlreadyCancelled();
     error EmptyProof();
     error MaxClaimsBelowCurrent();
     error OperationExpired();
@@ -84,6 +84,7 @@ contract Airdrop is ReentrancyGuard {
     uint256 public constant TIMELOCK_EXPIRATION = 14 days;
     mapping(bytes32 => uint256) public timelockSchedule;
     mapping(bytes32 => bool) public executedOperations;
+    mapping(bytes32 => bool) public cancelledOperations;
 
     mapping(bytes32 => bool) public usedNullifiers;
 
@@ -171,7 +172,9 @@ contract Airdrop is ReentrancyGuard {
 
     function cancelOperation(bytes32 operationHash) external onlyOwner {
         if (executedOperations[operationHash]) revert OperationAlreadyExecuted();
+        if (cancelledOperations[operationHash]) revert OperationAlreadyCancelled();
         if (timelockSchedule[operationHash] == 0) revert OperationNotScheduled();
+        cancelledOperations[operationHash] = true;
         delete timelockSchedule[operationHash];
         emit OperationCancelled(operationHash);
     }

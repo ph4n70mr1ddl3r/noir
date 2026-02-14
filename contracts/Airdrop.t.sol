@@ -271,7 +271,7 @@ contract AirdropTest is Test {
         bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
         airdrop.cancelOperation(operationHash);
 
-        vm.expectRevert(Airdrop.OperationNotScheduled.selector);
+        vm.expectRevert(Airdrop.OperationAlreadyCancelled.selector);
         airdrop.cancelOperation(operationHash);
         vm.stopPrank();
     }
