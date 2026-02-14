@@ -344,6 +344,12 @@ contract AirdropTest is Test {
         airdrop.scheduleWithdrawTokens(excessiveAmount);
     }
 
+    /// @notice Tests that the reentrancy guard prevents nested claim calls
+    /// @dev The ReentrancyToken attempts to call claim() during transfer.
+    ///      The inner claim hits the nonReentrant modifier and reverts with ReentrancyGuardReentrantCall.
+    ///      Since Airdrop.claim() uses a low-level call for token transfer, the inner revert
+    ///      is caught and converted to TransferFailed. The key verification is that the nullifier
+    ///      was NOT marked as used, proving the reentrancy was prevented.
     function testReentrancyGuard() public {
         ReentrancyToken reentrancyToken = new ReentrancyToken();
         MockVerifier reentrancyVerifier = new MockVerifier();
@@ -356,7 +362,7 @@ contract AirdropTest is Test {
         reentrancyToken.mint(address(reentrancyAirdrop), MAX_CLAIMS * CLAIM_AMOUNT);
         vm.stopPrank();
 
-        Malicious attacker = new Malicious(payable(address(reentrancyAirdrop)));
+        AttackerContract attacker = new AttackerContract(payable(address(reentrancyAirdrop)));
         reentrancyToken.setAttacker(address(attacker), payable(address(reentrancyAirdrop)));
 
         bytes32 nullifier = bytes32(uint256(999));
@@ -783,7 +789,10 @@ contract ReentrancyToken is IERC20 {
     }
 }
 
-contract Malicious {
+/// @notice Empty attacker contract - the reentrancy logic is in ReentrancyToken
+/// @dev ReentrancyToken.transfer() attempts to call airdrop.claim() during the transfer.
+///      This contract is just a recipient that receives the tokens after a failed attack.
+contract AttackerContract {
     Airdrop public airdrop;
 
     constructor(address payable _airdrop) {
