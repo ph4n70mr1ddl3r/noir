@@ -421,6 +421,8 @@ pub fn run(mut cli: Cli) -> Result<()> {
         signature: hex_encode(signature_bytes),
     };
 
+    private_key_le_bytes.zeroize();
+
     if cli.output.exists() {
         eprintln!(
             "WARNING: Output file {:?} already exists and will be overwritten.",
@@ -434,11 +436,13 @@ pub fn run(mut cli: Cli) -> Result<()> {
 
     eprintln!();
     eprintln!("SECURITY WARNING: The output file contains sensitive data including:");
-    eprintln!("  - Your private key (in little-endian format)");
+    eprintln!("  - Your private key (in little-endian format, derived from your original key)");
     eprintln!("  - Your signature");
     eprintln!("  - Your nullifier");
     eprintln!("Store this file securely and delete it after use. Anyone with access to");
     eprintln!("this file can potentially compromise your account.");
+    eprintln!();
+    eprintln!("NOTE: Private keys have been zeroized from memory after use.");
 
     println!("\nClaim generated successfully!");
     println!("Claimer address: {}", hex_encode(claimer_address));

@@ -32,8 +32,12 @@ pub enum CommonError {
     #[error("Merkle tree is empty")]
     EmptyTree,
 
-    #[error("Leaf index {0} is out of bounds for tree with {1} leaves (valid range: 0..{})", .1.saturating_sub(1))]
-    LeafIndexOutOfBounds(usize, usize),
+    #[error("Leaf index {index} is out of bounds for tree with {leaf_count} leaves (valid range: 0..{max_index})")]
+    LeafIndexOutOfBounds {
+        index: usize,
+        leaf_count: usize,
+        max_index: usize,
+    },
 
     #[error("Encountered empty level {0} in Merkle tree")]
     EmptyLevel(usize),
@@ -220,7 +224,11 @@ pub fn get_merkle_proof(
         return Err(CommonError::EmptyTree);
     }
     if leaf_index >= tree[0].len() {
-        return Err(CommonError::LeafIndexOutOfBounds(leaf_index, tree[0].len()));
+        return Err(CommonError::LeafIndexOutOfBounds {
+            index: leaf_index,
+            leaf_count: tree[0].len(),
+            max_index: tree[0].len().saturating_sub(1),
+        });
     }
 
     let mut proof = Vec::with_capacity(MERKLE_DEPTH);
@@ -403,12 +411,28 @@ mod tests {
         let result = get_merkle_proof(&tree, 5);
         assert!(matches!(
             result,
-            Err(CommonError::LeafIndexOutOfBounds(5, 2))
+            Err(CommonError::LeafIndexOutOfBounds {
+                index: 5,
+                leaf_count: 2,
+                ..
+            })
         ));
-        if let Err(CommonError::LeafIndexOutOfBounds(idx, len)) = result {
+        if let Err(CommonError::LeafIndexOutOfBounds {
+            index: idx,
+            leaf_count: len,
+            ..
+        }) = result
+        {
             assert_eq!(idx, 5);
             assert_eq!(len, 2);
-            let msg = format!("{}", CommonError::LeafIndexOutOfBounds(5, 2));
+            let msg = format!(
+                "{}",
+                CommonError::LeafIndexOutOfBounds {
+                    index: 5,
+                    leaf_count: 2,
+                    max_index: 1
+                }
+            );
             assert!(msg.contains('5'));
             assert!(msg.contains('2'));
         }
