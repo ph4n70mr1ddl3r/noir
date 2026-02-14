@@ -11,7 +11,7 @@ mod common;
 #[allow(dead_code, unreachable_pub)]
 mod prove;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(name = "airdrop")]
 #[command(about = "Noir ZK Airdrop CLI tools", long_about = None)]
 #[command(version)]
@@ -20,7 +20,7 @@ struct Cli {
     command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Commands {
     BuildTree(build_tree::Cli),
     Claim(claim::Cli),

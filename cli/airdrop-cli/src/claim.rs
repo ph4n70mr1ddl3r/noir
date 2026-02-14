@@ -272,7 +272,7 @@ fn load_merkle_tree(path: &Path) -> Result<Vec<Vec<[u8; 32]>>> {
 /// # Returns
 /// 20-byte Ethereum address
 #[inline]
-fn private_key_to_address(signing_key: &SigningKey) -> Result<([u8; 20], [u8; 32], [u8; 32])> {
+fn private_key_to_address(signing_key: &SigningKey) -> ([u8; 20], [u8; 32], [u8; 32]) {
     let public_key = signing_key.verifying_key();
     let encoded = public_key.to_encoded_point(false);
     let pub_bytes = encoded.as_bytes();
@@ -285,7 +285,7 @@ fn private_key_to_address(signing_key: &SigningKey) -> Result<([u8; 20], [u8; 32
     let hash = Keccak256::digest(&pub_bytes[1..]);
     let mut address = [0u8; 20];
     address.copy_from_slice(&hash[12..32]);
-    Ok((address, pub_key_x, pub_key_y))
+    (address, pub_key_x, pub_key_y)
 }
 
 pub fn run(mut cli: Cli) -> Result<()> {
@@ -347,7 +347,7 @@ pub fn run(mut cli: Cli) -> Result<()> {
     let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;
 
     println!("Deriving address from private key...");
-    let (claimer_address, public_key_x, public_key_y) = private_key_to_address(&signing_key)?;
+    let (claimer_address, public_key_x, public_key_y) = private_key_to_address(&signing_key);
 
     println!("Computing nullifier...");
     let nullifier = compute_nullifier(&private_key_bytes)?;
@@ -515,7 +515,7 @@ mod tests {
     fn test_private_key_to_address() {
         let key_bytes = [1u8; 32];
         let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
-        let (address, pub_x, pub_y) = private_key_to_address(&signing_key).unwrap();
+        let (address, pub_x, pub_y) = private_key_to_address(&signing_key);
         assert_eq!(address.len(), 20);
         assert_ne!(address, [0u8; 20]);
         assert_eq!(pub_x.len(), 32);
@@ -527,7 +527,7 @@ mod tests {
         let mut key_bytes = [0u8; 32];
         key_bytes[31] = 0x01;
         let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
-        let (address, _, _) = private_key_to_address(&signing_key).unwrap();
+        let (address, _, _) = private_key_to_address(&signing_key);
         let expected: [u8; 20] = [
             0x7E, 0x5F, 0x45, 0x52, 0x09, 0x1A, 0x69, 0x12, 0x5D, 0x5D, 0xFC, 0xB7, 0xB8, 0xC2,
             0x65, 0x90, 0x29, 0x39, 0x5B, 0xDF,
@@ -539,10 +539,10 @@ mod tests {
     fn test_private_key_to_address_deterministic() {
         let key_bytes = [42u8; 32];
         let signing_key = SigningKey::from_slice(&key_bytes).unwrap();
-        let (first_address, first_x, first_y) = private_key_to_address(&signing_key).unwrap();
+        let (first_address, first_x, first_y) = private_key_to_address(&signing_key);
 
         let signing_key2 = SigningKey::from_slice(&key_bytes).unwrap();
-        let (second_address, second_x, second_y) = private_key_to_address(&signing_key2).unwrap();
+        let (second_address, second_x, second_y) = private_key_to_address(&signing_key2);
 
         assert_eq!(first_address, second_address);
         assert_eq!(first_x, second_x);
