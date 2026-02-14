@@ -286,7 +286,7 @@ contract Airdrop is ReentrancyGuard {
         if (proof.length == 0) revert EmptyProof();
 
         if (claimCount >= maxClaims) revert MaxClaimsExceeded();
-        
+
         IERC20 token_ = token;
         if (token_.balanceOf(address(this)) < CLAIM_AMOUNT) revert InsufficientBalance();
 
@@ -402,7 +402,7 @@ contract Airdrop is ReentrancyGuard {
     ///      Reverts if any operation cannot be cancelled (already executed, already cancelled, or not scheduled).
     function batchCancelOperations(bytes32[] calldata operationHashes) external onlyOwner {
         if (operationHashes.length == 0) revert EmptyBatch();
-        
+
         for (uint256 i = 0; i < operationHashes.length;) {
             bytes32 opHash = operationHashes[i];
             if (executedOperations[opHash]) revert OperationAlreadyExecuted();
