@@ -954,6 +954,68 @@ contract AirdropTest is Test {
         assertEq(airdrop.maxClaims(), originalMaxClaims);
         assertEq(airdrop.paused(), originalPaused);
     }
+
+    function testTokenTransferReturnsFalse() public {
+        FailingToken failingToken = new FailingToken();
+        MockVerifier failingVerifier = new MockVerifier();
+        failingVerifier.setVerify(true);
+
+        vm.startPrank(owner);
+        Airdrop failingAirdrop = new Airdrop(
+            address(failingToken), address(failingVerifier), merkleRoot, MAX_CLAIMS
+        );
+        failingToken.mint(address(failingAirdrop), MAX_CLAIMS * CLAIM_AMOUNT);
+        vm.stopPrank();
+
+        bytes32 nullifier = bytes32(uint256(456));
+        vm.prank(user);
+        vm.expectRevert(Airdrop.TransferFailed.selector);
+        failingAirdrop.claim(_mockProof(), nullifier, user);
+    }
+
+    function testClaimExactBalance() public {
+        vm.startPrank(owner);
+        MockERC20 smallToken = new MockERC20();
+        smallToken.mint(owner, CLAIM_AMOUNT);
+        MockVerifier smallVerifier = new MockVerifier();
+        smallVerifier.setVerify(true);
+        Airdrop smallAirdrop = new Airdrop(
+            address(smallToken), address(smallVerifier), merkleRoot, 10
+        );
+        smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT);
+        vm.stopPrank();
+
+        bytes32 nullifier = bytes32(uint256(999));
+        vm.prank(user);
+        smallAirdrop.claim(_mockProof(), nullifier, user);
+
+        assertEq(smallToken.balanceOf(user), CLAIM_AMOUNT);
+        assertEq(smallToken.balanceOf(address(smallAirdrop)), 0);
+    }
+
+    function testMaxClaimsBoundarySingle() public {
+        vm.startPrank(owner);
+        MockERC20 singleToken = new MockERC20();
+        singleToken.mint(owner, CLAIM_AMOUNT);
+        MockVerifier singleVerifier = new MockVerifier();
+        singleVerifier.setVerify(true);
+        Airdrop singleAirdrop = new Airdrop(
+            address(singleToken), address(singleVerifier), merkleRoot, 1
+        );
+        singleToken.transfer(address(singleAirdrop), CLAIM_AMOUNT);
+        vm.stopPrank();
+
+        bytes32 nullifier = bytes32(uint256(1));
+        vm.prank(user);
+        singleAirdrop.claim(_mockProof(), nullifier, user);
+
+        assertEq(singleAirdrop.claimCount(), 1);
+
+        bytes32 nullifier2 = bytes32(uint256(2));
+        vm.prank(user);
+        vm.expectRevert(Airdrop.MaxClaimsExceeded.selector);
+        singleAirdrop.claim(_mockProof(), nullifier2, user);
+    }
 }
 
 contract ReentrancyToken is IERC20 {
@@ -996,5 +1058,23 @@ contract AttackerContract {
 
     constructor(address payable _airdrop) {
         airdrop = Airdrop(_airdrop);
+    }
+}
+
+contract FailingToken is IERC20 {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    function transfer(address, uint256) external pure returns (bool) {
+        return false;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
     }
 }

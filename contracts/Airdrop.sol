@@ -285,13 +285,16 @@ contract Airdrop is ReentrancyGuard {
         if (recipient == address(this)) revert ClaimToContract();
         if (proof.length == 0) revert EmptyProof();
 
-        if (claimCount >= maxClaims) revert MaxClaimsExceeded();
+        uint256 currentClaimCount = claimCount;
+        uint256 currentMaxClaims = maxClaims;
+        if (currentClaimCount >= currentMaxClaims) revert MaxClaimsExceeded();
 
         IERC20 token_ = token;
         if (token_.balanceOf(address(this)) < CLAIM_AMOUNT) revert InsufficientBalance();
 
+        bytes32 merkleRoot_ = merkleRoot;
         uint256[] memory publicInputs = new uint256[](3);
-        publicInputs[0] = uint256(merkleRoot);
+        publicInputs[0] = uint256(merkleRoot_);
         publicInputs[1] = uint256(uint160(recipient));
         publicInputs[2] = uint256(nullifier);
 
@@ -301,15 +304,16 @@ contract Airdrop is ReentrancyGuard {
         usedNullifiers[nullifier] = true;
         unchecked {
             totalClaimed += CLAIM_AMOUNT;
-            ++claimCount;
+            ++currentClaimCount;
         }
+        claimCount = currentClaimCount;
 
         (bool success, bytes memory data) = address(token_)
             .call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
         if (!success) revert TransferFailed();
         if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
 
-        emit Claimed(recipient, nullifier, claimCount);
+        emit Claimed(recipient, nullifier, currentClaimCount);
     }
 
     /// @notice Updates the Merkle root after timelock expires

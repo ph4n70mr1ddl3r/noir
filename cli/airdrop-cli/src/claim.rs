@@ -361,6 +361,7 @@ pub fn run(mut cli: Cli) -> Result<()> {
     message[12..32].copy_from_slice(&claimer_address);
     let message_hash = Keccak256::digest(message);
     let signature: k256::ecdsa::Signature = signing_key.sign(&message_hash);
+    drop(signing_key);
     let sig_bytes = signature.to_bytes();
     let mut signature_bytes: [u8; 64] = [0u8; 64];
     signature_bytes.copy_from_slice(&sig_bytes);
