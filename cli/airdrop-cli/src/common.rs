@@ -14,41 +14,41 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum CommonError {
-    #[error("Invalid address length: expected 40 hex chars, got {0}")]
+    #[error("Invalid address length: expected 40 hex chars (20 bytes), got {0}. Ensure address includes '0x' prefix and is a valid Ethereum address.")]
     InvalidAddressLength(usize),
 
-    #[error("Invalid hex encoding: {0}")]
+    #[error("Invalid hex encoding: {0}. Ensure all characters are 0-9 or a-f (case insensitive).")]
     InvalidHex(#[source] hex::FromHexError),
 
-    #[error("Zero address not allowed")]
+    #[error("Zero address (0x0000000000000000000000000000000000000000) is not allowed. Please provide a valid non-zero address.")]
     ZeroAddress,
 
-    #[error("Invalid merkle root length: expected 64 hex chars, got {0}")]
+    #[error("Invalid merkle root length: expected 64 hex chars (32 bytes), got {0}. Ensure root includes '0x' prefix.")]
     InvalidRootLength(usize),
 
-    #[error("Invalid merkle root: must not be zero")]
+    #[error("Invalid merkle root: must not be zero. Verify the merkle tree was built correctly.")]
     ZeroRoot,
 
-    #[error("Merkle tree is empty")]
+    #[error("Merkle tree is empty. Ensure the tree file contains valid data.")]
     EmptyTree,
 
-    #[error("Leaf index {index} is out of bounds for tree with {leaf_count} leaves (valid range: 0..{max_index})")]
+    #[error("Leaf index {index} is out of bounds for tree with {leaf_count} leaves (valid range: 0..{max_index}). Check your index map file.")]
     LeafIndexOutOfBounds {
         index: usize,
         leaf_count: usize,
         max_index: usize,
     },
 
-    #[error("Encountered empty level {0} in Merkle tree")]
+    #[error("Encountered empty level {0} in Merkle tree. The tree file may be corrupted.")]
     EmptyLevel(usize),
 
     #[error("IO error: {0}")]
     Io(#[source] std::io::Error),
 
-    #[error("Private key cannot be zero")]
+    #[error("Private key cannot be zero. Ensure you're using a valid 32-byte private key.")]
     ZeroPrivateKey,
 
-    #[error("Private key must be less than secp256k1 curve order")]
+    #[error("Private key must be less than secp256k1 curve order. The provided key is invalid for Ethereum.")]
     PrivateKeyExceedsOrder,
 }
 

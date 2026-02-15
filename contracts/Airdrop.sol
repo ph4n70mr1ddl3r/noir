@@ -157,6 +157,7 @@ contract Airdrop is ReentrancyGuard {
     event RenounceOwnershipScheduled(bytes32 indexed operationHash, uint256 executeAfter);
     event BatchClaimed(address indexed recipient, uint256 indexed claimCount, uint256 totalAmount);
     event BatchOperationsCancelled(bytes32[] indexed operationHashes, uint256 count);
+    event BatchOperationsScheduled(bytes32[] indexed operationHashes, uint256 count, uint256 executeAfter);
 
     enum OperationStatus {
         NotScheduled,
@@ -558,9 +559,11 @@ contract Airdrop is ReentrancyGuard {
 
     /// @notice Schedules a timelocked operation
     /// @param operationHash The hash of the operation to schedule
-    /// @dev Clears any previous cancellation to allow re-scheduling
+    /// @dev Clears any previous cancellation to allow re-scheduling.
+    ///      Prevents re-scheduling of already executed operations.
     function _scheduleOperation(bytes32 operationHash) internal {
         if (timelockSchedule[operationHash] != 0) revert OperationAlreadyScheduled();
+        if (executedOperations[operationHash]) revert OperationAlreadyExecuted();
         delete cancelledOperations[operationHash];
         timelockSchedule[operationHash] = block.timestamp + TIMELOCK_DELAY;
         emit TimelockScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
@@ -602,6 +605,33 @@ contract Airdrop is ReentrancyGuard {
         }
 
         emit BatchOperationsCancelled(operationHashes, operationHashes.length);
+    }
+
+    /// @notice Schedules multiple timelocked operations in a single transaction
+    /// @param operationHashes Array of operation hashes to schedule
+    /// @dev Only callable by owner. More gas-efficient than calling _scheduleOperation multiple times.
+    ///      Reverts if any operation is already scheduled. Operations that were previously
+    ///      cancelled can be re-scheduled.
+    ///      Maximum batch size is 50 to prevent out-of-gas issues.
+    function batchScheduleOperations(bytes32[] calldata operationHashes) external onlyOwner {
+        if (operationHashes.length == 0) revert EmptyBatch();
+        if (operationHashes.length > MAX_BATCH_SIZE) revert BatchTooLarge();
+
+        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
+        
+        for (uint256 i = 0; i < operationHashes.length;) {
+            bytes32 opHash = operationHashes[i];
+            if (timelockSchedule[opHash] != 0) revert OperationAlreadyScheduled();
+            if (executedOperations[opHash]) revert OperationAlreadyExecuted();
+            delete cancelledOperations[opHash];
+            timelockSchedule[opHash] = executeAfter;
+            emit TimelockScheduled(opHash, executeAfter);
+            unchecked {
+                ++i;
+            }
+        }
+
+        emit BatchOperationsScheduled(operationHashes, operationHashes.length, executeAfter);
     }
 
     /// @notice Executes a timelocked operation after delay has passed
@@ -675,6 +705,45 @@ contract Airdrop is ReentrancyGuard {
     /// @return executeAfter The timestamp after which the operation can be executed (0 if not scheduled)
     function getOperationSchedule(bytes32 operationHash) external view returns (uint256 executeAfter) {
         return timelockSchedule[operationHash];
+    }
+
+    /// @notice Computes the operation hash for a root update
+    /// @dev Helper function for frontends to compute operation hashes without encoding
+    /// @param newRoot The new Merkle root
+    /// @return The operation hash
+    function getUpdateRootHash(bytes32 newRoot) external pure returns (bytes32) {
+        return _hashOperation(abi.encode("updateRoot", newRoot));
+    }
+
+    /// @notice Computes the operation hash for a verifier update
+    /// @dev Helper function for frontends to compute operation hashes without encoding
+    /// @param newVerifier The new verifier address
+    /// @return The operation hash
+    function getUpdateVerifierHash(address newVerifier) external pure returns (bytes32) {
+        return _hashOperation(abi.encode("updateVerifier", newVerifier));
+    }
+
+    /// @notice Computes the operation hash for a max claims update
+    /// @dev Helper function for frontends to compute operation hashes without encoding
+    /// @param _maxClaims The new max claims value
+    /// @return The operation hash
+    function getSetMaxClaimsHash(uint256 _maxClaims) external pure returns (bytes32) {
+        return _hashOperation(abi.encode("setMaxClaims", _maxClaims));
+    }
+
+    /// @notice Computes the operation hash for a token withdrawal
+    /// @dev Helper function for frontends to compute operation hashes without encoding
+    /// @param amount The amount to withdraw
+    /// @return The operation hash
+    function getWithdrawTokensHash(uint256 amount) external pure returns (bytes32) {
+        return _hashOperation(abi.encode("withdrawTokens", amount));
+    }
+
+    /// @notice Computes the operation hash for ownership renunciation
+    /// @dev Helper function for frontends to compute operation hashes without encoding
+    /// @return The operation hash
+    function getRenounceOwnershipHash() external pure returns (bytes32) {
+        return _hashOperation(abi.encode("renounceOwnership"));
     }
 
     /// @notice Pre-validates claim parameters without executing the claim

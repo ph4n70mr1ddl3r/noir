@@ -95,6 +95,21 @@ jobs:
         run: cargo build --release
         working-directory: cli/airdrop-cli
 
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate code coverage
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+        working-directory: cli/airdrop-cli
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: cli/airdrop-cli/lcov.info
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   noir:
     name: Noir Circuit
     runs-on: ubuntu-latest

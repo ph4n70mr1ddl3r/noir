@@ -2043,6 +2043,245 @@ contract AirdropTest is Test {
         assertFalse(isValidAfter);
         assertEq(reasonAfter, "Nullifier already used");
     }
+
+    function testGetOperationHashFunctions() public view {
+        bytes32 root = bytes32(uint256(123));
+        address newVerifier = address(0x123);
+        uint256 newMaxClaims = 2000;
+        uint256 withdrawAmount = 100 ether;
+
+        bytes32 rootHash = airdrop.getUpdateRootHash(root);
+        assertEq(rootHash, keccak256(abi.encode("updateRoot", root)));
+
+        bytes32 verifierHash = airdrop.getUpdateVerifierHash(newVerifier);
+        assertEq(verifierHash, keccak256(abi.encode("updateVerifier", newVerifier)));
+
+        bytes32 maxClaimsHash = airdrop.getSetMaxClaimsHash(newMaxClaims);
+        assertEq(maxClaimsHash, keccak256(abi.encode("setMaxClaims", newMaxClaims)));
+
+        bytes32 withdrawHash = airdrop.getWithdrawTokensHash(withdrawAmount);
+        assertEq(withdrawHash, keccak256(abi.encode("withdrawTokens", withdrawAmount)));
+
+        bytes32 renounceHash = airdrop.getRenounceOwnershipHash();
+        assertEq(renounceHash, keccak256(abi.encode("renounceOwnership")));
+    }
+
+    function testBatchScheduleOperations() public {
+        bytes32 root1 = bytes32(uint256(789));
+        bytes32 root2 = bytes32(uint256(790));
+        bytes32 root3 = bytes32(uint256(791));
+
+        bytes32 hash1 = keccak256(abi.encode("updateRoot", root1));
+        bytes32 hash2 = keccak256(abi.encode("updateRoot", root2));
+        bytes32 hash3 = keccak256(abi.encode("updateRoot", root3));
+
+        bytes32[] memory hashes = new bytes32[](3);
+        hashes[0] = hash1;
+        hashes[1] = hash2;
+        hashes[2] = hash3;
+
+        vm.prank(owner);
+        airdrop.batchScheduleOperations(hashes);
+
+        assertGt(airdrop.timelockSchedule(hash1), 0);
+        assertGt(airdrop.timelockSchedule(hash2), 0);
+        assertGt(airdrop.timelockSchedule(hash3), 0);
+    }
+
+    function testBatchScheduleOperationsEmptyBatch() public {
+        bytes32[] memory emptyHashes = new bytes32[](0);
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.EmptyBatch.selector);
+        airdrop.batchScheduleOperations(emptyHashes);
+    }
+
+    function testBatchScheduleOperationsTooLarge() public {
+        bytes32[] memory hashes = new bytes32[](51);
+        for (uint256 i = 0; i < 51; i++) {
+            hashes[i] = keccak256(abi.encode("updateRoot", bytes32(uint256(i + 100))));
+        }
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.BatchTooLarge.selector);
+        airdrop.batchScheduleOperations(hashes);
+    }
+
+    function testBatchScheduleOperationsAlreadyScheduled() public {
+        bytes32 root1 = bytes32(uint256(789));
+        bytes32 root2 = bytes32(uint256(790));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(root1);
+
+        bytes32 hash1 = keccak256(abi.encode("updateRoot", root1));
+        bytes32 hash2 = keccak256(abi.encode("updateRoot", root2));
+
+        bytes32[] memory hashes = new bytes32[](2);
+        hashes[0] = hash1;
+        hashes[1] = hash2;
+
+        vm.expectRevert(Airdrop.OperationAlreadyScheduled.selector);
+        airdrop.batchScheduleOperations(hashes);
+        vm.stopPrank();
+    }
+
+    function testBatchScheduleOperationsAlreadyExecuted() public {
+        bytes32 root1 = bytes32(uint256(789));
+        bytes32 hash1 = keccak256(abi.encode("updateRoot", root1));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(root1);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.updateRoot(root1);
+
+        bytes32[] memory hashes = new bytes32[](1);
+        hashes[0] = hash1;
+
+        vm.expectRevert(Airdrop.OperationAlreadyExecuted.selector);
+        airdrop.batchScheduleOperations(hashes);
+        vm.stopPrank();
+    }
+
+    function testBatchScheduleOperationsAfterCancel() public {
+        bytes32 root1 = bytes32(uint256(789));
+        bytes32 hash1 = keccak256(abi.encode("updateRoot", root1));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(root1);
+        airdrop.cancelOperation(hash1);
+
+        bytes32[] memory hashes = new bytes32[](1);
+        hashes[0] = hash1;
+
+        airdrop.batchScheduleOperations(hashes);
+        assertGt(airdrop.timelockSchedule(hash1), 0);
+        assertFalse(airdrop.cancelledOperations(hash1));
+        vm.stopPrank();
+    }
+
+    function testRescheduleAfterExecutionBlocked() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.updateRoot(newRoot);
+
+        vm.expectRevert(Airdrop.OperationAlreadyExecuted.selector);
+        airdrop.scheduleUpdateRoot(newRoot);
+        vm.stopPrank();
+    }
+
+    event BatchOperationsScheduled(bytes32[] indexed operationHashes, uint256 count, uint256 executeAfter);
+
+    function testBatchOperationsScheduledEvent() public {
+        bytes32 root1 = bytes32(uint256(789));
+        bytes32 root2 = bytes32(uint256(790));
+
+        bytes32 hash1 = keccak256(abi.encode("updateRoot", root1));
+        bytes32 hash2 = keccak256(abi.encode("updateRoot", root2));
+
+        bytes32[] memory hashes = new bytes32[](2);
+        hashes[0] = hash1;
+        hashes[1] = hash2;
+
+        vm.prank(owner);
+        vm.expectEmit(false, false, false, true);
+        emit BatchOperationsScheduled(hashes, 2, block.timestamp + 2 days);
+        airdrop.batchScheduleOperations(hashes);
+    }
+
+    function testOwnershipTransferTwiceBeforeAccept() public {
+        address newOwner1 = address(0x3);
+        address newOwner2 = address(0x4);
+
+        vm.startPrank(owner);
+        airdrop.transferOwnership(newOwner1);
+        assertEq(airdrop.pendingOwner(), newOwner1);
+
+        airdrop.transferOwnership(newOwner2);
+        assertEq(airdrop.pendingOwner(), newOwner2);
+
+        vm.stopPrank();
+
+        vm.prank(newOwner1);
+        vm.expectRevert(Airdrop.NotOwner.selector);
+        airdrop.acceptOwnership();
+
+        vm.prank(newOwner2);
+        airdrop.acceptOwnership();
+        assertEq(airdrop.owner(), newOwner2);
+    }
+
+    function testOwnershipTransferSameAsCurrentOwner() public {
+        vm.prank(owner);
+        airdrop.transferOwnership(owner);
+        assertEq(airdrop.pendingOwner(), owner);
+
+        vm.prank(owner);
+        airdrop.acceptOwnership();
+        assertEq(airdrop.owner(), owner);
+        assertEq(airdrop.pendingOwner(), address(0));
+    }
+
+    function testOwnershipTransferPendingOwnerCanReject() public {
+        address newOwner = address(0x3);
+
+        vm.prank(owner);
+        airdrop.transferOwnership(newOwner);
+        assertEq(airdrop.pendingOwner(), newOwner);
+
+        vm.prank(owner);
+        airdrop.transferOwnership(address(0x4));
+        assertEq(airdrop.pendingOwner(), address(0x4));
+        assertEq(airdrop.owner(), owner);
+    }
+
+    function testOwnershipTransferAfterRenounceFails() public {
+        vm.startPrank(owner);
+        airdrop.scheduleRenounceOwnership();
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.renounceOwnership();
+        assertEq(airdrop.owner(), address(0));
+
+        vm.expectRevert(Airdrop.NotOwner.selector);
+        airdrop.transferOwnership(address(0x3));
+        vm.stopPrank();
+    }
+
+    function testAcceptOwnershipByWrongAddress() public {
+        address newOwner = address(0x3);
+        address wrongAddress = address(0x4);
+
+        vm.prank(owner);
+        airdrop.transferOwnership(newOwner);
+
+        vm.prank(wrongAddress);
+        vm.expectRevert(Airdrop.NotOwner.selector);
+        airdrop.acceptOwnership();
+
+        assertEq(airdrop.owner(), owner);
+        assertEq(airdrop.pendingOwner(), newOwner);
+    }
+
+    function testPendingOwnerSetEventOnTransfer() public {
+        address newOwner = address(0x3);
+        vm.prank(owner);
+        vm.expectEmit(true, false, false, true);
+        emit PendingOwnerSet(newOwner);
+        airdrop.transferOwnership(newOwner);
+    }
+
+    function testPendingOwnerClearedAfterAccept() public {
+        address newOwner = address(0x3);
+
+        vm.prank(owner);
+        airdrop.transferOwnership(newOwner);
+
+        vm.prank(newOwner);
+        airdrop.acceptOwnership();
+
+        assertEq(airdrop.pendingOwner(), address(0));
+    }
 }
 
 contract ReentrancyToken is IERC20 {
