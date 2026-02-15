@@ -3,6 +3,7 @@
 use airdrop_cli::{address_to_leaf, hex_encode, keccak256_hash, write_file_atomic, MERKLE_DEPTH};
 use anyhow::{Context, Result};
 use clap::Parser;
+use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -38,6 +39,10 @@ pub struct Cli {
     /// Output file for Merkle tree (for proof generation)
     #[arg(short, long)]
     pub tree_output: Option<PathBuf>,
+
+    /// Output file for checksums (for file integrity verification)
+    #[arg(long)]
+    pub checksum_output: Option<PathBuf>,
 }
 
 /// Builds a Merkle tree from a list of leaf hashes.
@@ -171,6 +176,28 @@ pub fn run(cli: Cli) -> Result<()> {
         }
         let tree_content = format!("{}\n", tree_lines.join("\n"));
         write_file_atomic(&tree_path, &tree_content).context("Failed to write tree file")?;
+    }
+
+    if let Some(checksum_path) = cli.checksum_output {
+        println!("Computing checksums...");
+        let mut hasher = Keccak256::new();
+        hasher.update(root);
+        for level in &tree {
+            for node in level {
+                hasher.update(node);
+            }
+        }
+        let tree_checksum = hasher.finalize();
+
+        let checksum_content = format!(
+            "merkle_root:{}\ntree_checksum:{}\nleaf_count:{}\n",
+            hex_encode(root),
+            hex_encode(tree_checksum),
+            tree.first().map(|l| l.len()).unwrap_or(0)
+        );
+        write_file_atomic(&checksum_path, &checksum_content)
+            .context("Failed to write checksum file")?;
+        println!("Checksums written to {:?}", checksum_path);
     }
 
     println!("Done!");

@@ -624,6 +624,30 @@ contract AirdropTest is Test {
         airdrop.claim(new uint256[](0), nullifier, user);
     }
 
+    function testProofTooLong() public {
+        bytes32 nullifier = bytes32(uint256(456));
+        verifier.setVerify(true);
+        uint256[] memory longProof = new uint256[](1001);
+        for (uint256 i = 0; i < 1001; i++) {
+            longProof[i] = i;
+        }
+        vm.prank(user);
+        vm.expectRevert(Airdrop.ProofTooLong.selector);
+        airdrop.claim(longProof, nullifier, user);
+    }
+
+    function testProofMaxLength() public {
+        bytes32 nullifier = bytes32(uint256(456));
+        verifier.setVerify(true);
+        uint256[] memory maxProof = new uint256[](1000);
+        for (uint256 i = 0; i < 1000; i++) {
+            maxProof[i] = i + 1;
+        }
+        vm.prank(user);
+        airdrop.claim(maxProof, nullifier, user);
+        assertTrue(airdrop.isNullifierUsed(nullifier));
+    }
+
     function testZeroNullifier() public {
         verifier.setVerify(true);
         vm.prank(user);
@@ -1458,6 +1482,26 @@ contract AirdropTest is Test {
 
         vm.prank(user);
         vm.expectRevert(Airdrop.EmptyProof.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testBatchClaimProofTooLong() public {
+        verifier.setVerify(true);
+
+        uint256[] memory longProof = new uint256[](1001);
+        for (uint256 i = 0; i < 1001; i++) {
+            longProof[i] = i;
+        }
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
+        claims[0] = Airdrop.ClaimParams({
+            proof: longProof,
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.ProofTooLong.selector);
         airdrop.batchClaim(claims);
     }
 

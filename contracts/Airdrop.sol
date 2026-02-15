@@ -78,6 +78,7 @@ contract Airdrop is ReentrancyGuard {
     error OperationAlreadyScheduled();
     error OperationAlreadyCancelled();
     error EmptyProof();
+    error ProofTooLong();
     error MaxClaimsBelowCurrent();
     error OperationExpired();
     error InvalidToken();
@@ -113,6 +114,11 @@ contract Airdrop is ReentrancyGuard {
     /// @dev Limited to 10 to balance gas efficiency with block gas limits and prevent DoS vectors.
     ///      Each claim involves a ZK proof verification which is gas-intensive.
     uint256 public constant MAX_BATCH_CLAIMS = 10;
+
+    /// @notice Maximum length of the proof array to prevent DoS attacks
+    /// @dev ZK proofs have bounded size. This prevents malicious actors from submitting
+    ///      excessively large arrays that could cause out-of-gas issues.
+    uint256 public constant MAX_PROOF_LENGTH = 1000;
     uint256 public totalClaimed;
     /// @notice Total number of successful claims made
     uint256 public claimCount;
@@ -345,6 +351,7 @@ contract Airdrop is ReentrancyGuard {
         if (recipient == address(0)) revert InvalidRecipient();
         if (recipient == address(this)) revert ClaimToContract();
         if (proof.length == 0) revert EmptyProof();
+        if (proof.length > MAX_PROOF_LENGTH) revert ProofTooLong();
 
         uint256 currentClaimCount = claimCount;
         uint256 currentMaxClaims = maxClaims;
@@ -427,6 +434,7 @@ contract Airdrop is ReentrancyGuard {
             if (claimParams.recipient == address(0)) revert InvalidRecipient();
             if (claimParams.recipient == address(this)) revert ClaimToContract();
             if (claimParams.proof.length == 0) revert EmptyProof();
+            if (claimParams.proof.length > MAX_PROOF_LENGTH) revert ProofTooLong();
 
             for (uint256 j = 0; j < i;) {
                 if (claims[j].nullifier == claimParams.nullifier) {

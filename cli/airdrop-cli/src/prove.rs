@@ -13,6 +13,10 @@ use zeroize::Zeroize;
 use airdrop_cli::{validate_private_key_range, write_file_atomic, MERKLE_DEPTH};
 
 const MAX_CLAIM_FILE_SIZE: u64 = 10 * 1024 * 1024;
+const MAX_PROOF_ARRAY_LENGTH: usize = 1000;
+const SIGNATURE_LENGTH: usize = 64;
+const PUBLIC_KEY_COORD_LENGTH: usize = 32;
+const EXPECTED_CIRCUIT_VERSION: &str = "0.1.0";
 
 #[derive(Parser, Debug)]
 #[command(name = "prove")]
@@ -103,6 +107,91 @@ fn validate_recipient_address(value: &str) -> Result<[u8; 20]> {
         anyhow::bail!("Recipient address cannot be zero");
     }
     Ok(bytes)
+}
+
+#[inline]
+fn validate_signature(value: &str) -> Result<[u8; 64]> {
+    let cleaned = value.trim().strip_prefix("0x").unwrap_or(value.trim());
+    if cleaned.len() != SIGNATURE_LENGTH * 2 {
+        anyhow::bail!(
+            "Invalid signature length: expected {} hex chars, got {}",
+            SIGNATURE_LENGTH * 2,
+            cleaned.len()
+        );
+    }
+    let mut bytes = [0u8; 64];
+    hex::decode_to_slice(cleaned, &mut bytes).context("Invalid hex encoding for signature")?;
+    Ok(bytes)
+}
+
+#[inline]
+fn validate_public_key_coord(value: &str, name: &str) -> Result<[u8; 32]> {
+    let cleaned = value.trim().strip_prefix("0x").unwrap_or(value.trim());
+    if cleaned.len() != PUBLIC_KEY_COORD_LENGTH * 2 {
+        anyhow::bail!(
+            "Invalid {} length: expected {} hex chars, got {}",
+            name,
+            PUBLIC_KEY_COORD_LENGTH * 2,
+            cleaned.len()
+        );
+    }
+    let mut bytes = [0u8; 32];
+    hex::decode_to_slice(cleaned, &mut bytes)
+        .with_context(|| format!("Invalid hex encoding for {}", name))?;
+    Ok(bytes)
+}
+
+#[inline]
+fn validate_merkle_proof_element(value: &str, index: usize) -> Result<[u8; 32]> {
+    let cleaned = value.trim().strip_prefix("0x").unwrap_or(value.trim());
+    if cleaned.len() != 64 {
+        anyhow::bail!(
+            "Invalid merkle_proof[{}] length: expected 64 hex chars, got {}",
+            index,
+            cleaned.len()
+        );
+    }
+    let mut bytes = [0u8; 32];
+    hex::decode_to_slice(cleaned, &mut bytes)
+        .with_context(|| format!("Invalid hex encoding for merkle_proof[{}]", index))?;
+    Ok(bytes)
+}
+
+fn verify_circuit_version(circuit_path: &Path) -> Result<()> {
+    let nargo_toml_path = circuit_path.join("Nargo.toml");
+    if !nargo_toml_path.exists() {
+        anyhow::bail!(
+            "Circuit directory does not contain Nargo.toml: {:?}",
+            circuit_path
+        );
+    }
+
+    let nargo_content =
+        fs::read_to_string(&nargo_toml_path).context("Failed to read Nargo.toml")?;
+
+    for line in nargo_content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("version") {
+            if let Some(eq_pos) = trimmed.find('=') {
+                let version = trimmed[eq_pos + 1..].trim().trim_matches('"');
+                if version != EXPECTED_CIRCUIT_VERSION {
+                    anyhow::bail!(
+                        "Circuit version mismatch: expected '{}', found '{}'. \
+                         Please update CLI or circuit to match versions.",
+                        EXPECTED_CIRCUIT_VERSION,
+                        version
+                    );
+                }
+                return Ok(());
+            }
+        }
+    }
+
+    eprintln!(
+        "WARNING: No version field found in Nargo.toml. Expected version '{}'.",
+        EXPECTED_CIRCUIT_VERSION
+    );
+    Ok(())
 }
 
 #[inline]
@@ -289,6 +378,9 @@ pub fn run(cli: &Cli) -> Result<()> {
     validate_hex_32_bytes(&claim.merkle_root, "merkle_root")?;
     validate_hex_32_bytes(&claim.nullifier, "nullifier")?;
     validate_recipient_address(&claim.recipient)?;
+    validate_signature(&claim.signature)?;
+    validate_public_key_coord(&claim.public_key_x, "public_key_x")?;
+    validate_public_key_coord(&claim.public_key_y, "public_key_y")?;
 
     if claim.merkle_proof.len() != MERKLE_DEPTH {
         anyhow::bail!(
@@ -297,6 +389,10 @@ pub fn run(cli: &Cli) -> Result<()> {
             claim.merkle_proof.len()
         );
     }
+    for (i, proof_elem) in claim.merkle_proof.iter().enumerate() {
+        validate_merkle_proof_element(proof_elem, i)?;
+    }
+
     if claim.merkle_indices.len() != MERKLE_DEPTH {
         anyhow::bail!(
             "Invalid merkle_indices length: expected {}, got {}",
@@ -332,6 +428,9 @@ pub fn run(cli: &Cli) -> Result<()> {
             );
         }
     };
+
+    println!("Verifying circuit version...");
+    verify_circuit_version(&cli.circuit).context("Circuit version verification failed")?;
 
     println!("Generating Noir proof...");
     let proof_output = generate_noir_proof(&claim, &private_key_le_bytes, &cli.circuit)?;
