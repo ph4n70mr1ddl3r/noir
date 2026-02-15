@@ -1418,6 +1418,96 @@ contract AirdropTest is Test {
         assertEq(airdrop.paused(), originalPaused);
     }
 
+    function testBatchClaimToContractAddress() public {
+        verifier.setVerify(true);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: address(airdrop)
+        });
+        claims[1] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(101)),
+            recipient: user
+        });
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.ClaimToContract.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testBatchClaimEmptyProof() public {
+        verifier.setVerify(true);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+        claims[1] = Airdrop.ClaimParams({
+            proof: new uint256[](0),
+            nullifier: bytes32(uint256(101)),
+            recipient: user
+        });
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.EmptyProof.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testBatchClaimInsufficientBalance() public {
+        verifier.setVerify(true);
+
+        vm.startPrank(owner);
+        MockERC20 smallToken = new MockERC20();
+        smallToken.mint(owner, CLAIM_AMOUNT);
+        MockVerifier smallVerifier = new MockVerifier();
+        smallVerifier.setVerify(true);
+        Airdrop smallAirdrop = new Airdrop(
+            address(smallToken), address(smallVerifier), merkleRoot, 10
+        );
+        smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT);
+        vm.stopPrank();
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
+        for (uint256 i = 0; i < 2; i++) {
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 100)),
+                recipient: address(uint160(i + 200))
+            });
+        }
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.InsufficientBalance.selector);
+        smallAirdrop.batchClaim(claims);
+    }
+
+    function testFuzz_BatchClaimRejectsContractRecipient(uint8 batchSize, uint8 contractIndex) public {
+        vm.assume(batchSize > 0);
+        vm.assume(batchSize <= 10);
+        vm.assume(contractIndex < batchSize);
+
+        verifier.setVerify(true);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](batchSize);
+        for (uint256 i = 0; i < batchSize; i++) {
+            address recipient = (i == contractIndex) ? address(airdrop) : address(uint160(i + 2000));
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 90000)),
+                recipient: recipient
+            });
+        }
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.ClaimToContract.selector);
+        airdrop.batchClaim(claims);
+    }
+
     function testAcceptOwnershipEventOrder() public {
         address newOwner = address(0x3);
 
