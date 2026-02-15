@@ -49,11 +49,12 @@ pub struct Cli {
     #[arg(short, long)]
     pub root: String,
 
-    /// Exclude private key from output JSON for enhanced security
-    /// WARNING: If set, you will need to provide the private key separately
-    /// when running the 'prove' command
+    /// Include private key in output JSON (NOT recommended for security)
+    /// By default, the private key is excluded from the output file for security.
+    /// You will need to provide the private key separately when running 'prove'.
+    /// Use this flag only if you understand the security implications.
     #[arg(long)]
-    pub exclude_private_key: bool,
+    pub include_private_key: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -464,10 +465,10 @@ pub fn run(mut cli: Cli) -> Result<()> {
         merkle_indices,
         leaf_index,
         claimer_address: hex_encode(claimer_address),
-        private_key_le_bytes: if cli.exclude_private_key {
-            None
-        } else {
+        private_key_le_bytes: if cli.include_private_key {
             Some(hex_encode(private_key_le_bytes))
+        } else {
+            None
         },
         public_key_x: hex_encode(public_key_x),
         public_key_y: hex_encode(public_key_y),
@@ -488,15 +489,15 @@ pub fn run(mut cli: Cli) -> Result<()> {
     write_file_atomic(&cli.output, &json_output).context("Failed to write claim file")?;
 
     eprintln!();
-    if cli.exclude_private_key {
-        eprintln!("SECURITY INFO: Private key excluded from output file.");
-        eprintln!("You will need to provide the private key when running 'prove'.");
-    } else {
+    if cli.include_private_key {
         eprintln!("SECURITY WARNING: The output file contains sensitive data including:");
         eprintln!("  - Your private key (in little-endian format)");
         eprintln!("  - Your signature");
         eprintln!("  - Your nullifier");
-        eprintln!("For enhanced security, use --exclude-private-key flag.");
+        eprintln!("For enhanced security, omit the --include-private-key flag.");
+    } else {
+        eprintln!("SECURITY INFO: Private key excluded from output file.");
+        eprintln!("You will need to provide the private key when running 'prove'.");
     }
     eprintln!("Store this file securely and delete it after use. Anyone with access to");
     eprintln!("this file can potentially compromise your account.");

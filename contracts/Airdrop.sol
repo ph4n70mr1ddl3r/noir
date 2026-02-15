@@ -379,10 +379,7 @@ contract Airdrop is ReentrancyGuard {
         }
         claimCount = currentClaimCount;
 
-        (bool success, bytes memory data) = address(token_)
-            .call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, CLAIM_AMOUNT));
-        if (!success) revert TransferFailed();
-        if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
+        _safeTransfer(recipient, CLAIM_AMOUNT);
 
         emit Claimed(recipient, nullifier, currentClaimCount);
     }
@@ -436,6 +433,9 @@ contract Airdrop is ReentrancyGuard {
             if (claimParams.proof.length == 0) revert EmptyProof();
             if (claimParams.proof.length > MAX_PROOF_LENGTH) revert ProofTooLong();
 
+            // Check for duplicate nullifiers within the batch.
+            // Note: This O(n²) approach is acceptable since MAX_BATCH_CLAIMS is only 10.
+            // Using a mapping would add storage costs that outweigh the savings for such small batches.
             for (uint256 j = 0; j < i;) {
                 if (claims[j].nullifier == claimParams.nullifier) {
                     revert NullifierAlreadyUsed();
@@ -464,10 +464,7 @@ contract Airdrop is ReentrancyGuard {
                 batchTotal += CLAIM_AMOUNT;
             }
 
-            (bool success, bytes memory data) = address(token_)
-                .call(abi.encodeWithSelector(IERC20.transfer.selector, claimParams.recipient, CLAIM_AMOUNT));
-            if (!success) revert TransferFailed();
-            if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
+            _safeTransfer(claimParams.recipient, CLAIM_AMOUNT);
 
             emit Claimed(claimParams.recipient, claimParams.nullifier, currentClaimCount);
 
@@ -544,11 +541,19 @@ contract Airdrop is ReentrancyGuard {
     /// @param amount Amount of tokens to withdraw
     function _withdrawTokensInternal(uint256 amount) internal {
         if (amount > token.balanceOf(address(this))) revert InsufficientBalanceForWithdraw();
+        _safeTransfer(owner, amount);
+        emit TokensWithdrawn(owner, amount);
+    }
+
+    /// @notice Internal function for safe ERC20 token transfers
+    /// @dev Uses low-level call to handle non-compliant ERC20 tokens that don't return bool
+    /// @param recipient Address to receive the tokens
+    /// @param amount Amount of tokens to transfer
+    function _safeTransfer(address recipient, uint256 amount) internal {
         (bool success, bytes memory data) =
-            address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, owner, amount));
+            address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, recipient, amount));
         if (!success) revert TransferFailed();
         if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
-        emit TokensWithdrawn(owner, amount);
     }
 
     /// @notice Schedules a timelocked operation
