@@ -152,19 +152,32 @@ The generated `claim.json` contains:
   "merkle_indices": [true, false, ...],
   "leaf_index": 12345,
   "claimer_address": "0x...",
+  "private_key_le_bytes": "0x...",
   "public_key_x": "0x...",
   "public_key_y": "0x...",
   "signature": "0x..."
 }
 ```
 
+**Security Note**: The `private_key_le_bytes` field is included by default for convenience
+when generating proofs. For enhanced security, use `--exclude-private-key` to omit this field.
+You will then need to provide the private key separately when running the `prove` command.
+
 ### Phase 3.5: Generate Noir Proof
 
 Generate the actual zero-knowledge proof from the claim JSON:
 
 ```bash
+# If claim.json contains private_key_le_bytes (default):
 ./target/release/prove \
   --input claim.json \
+  --circuit ../../circuits/airdrop \
+  --output proof.json
+
+# If claim.json was created with --exclude-private-key:
+./target/release/prove \
+  --input claim.json \
+  --private-key YOUR_PRIVATE_KEY \
   --circuit ../../circuits/airdrop \
   --output proof.json
 ```
