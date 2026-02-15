@@ -99,9 +99,13 @@ Output `claim.json`:
   "recipient": "0x...",
   "nullifier": "0x...",
   "merkle_proof": ["0x...", "0x...", ...],
-  "private_key_field": "0x...",
+  "merkle_indices": [true, false, ...],
   "leaf_index": 0,
-  "claimer_address": "0x..."
+  "claimer_address": "0x...",
+  "private_key_le_bytes": "0x...",
+  "public_key_x": "0x...",
+  "public_key_y": "0x...",
+  "signature": "0x..."
 }
 ```
 
