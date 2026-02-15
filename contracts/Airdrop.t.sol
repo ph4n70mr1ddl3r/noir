@@ -209,6 +209,11 @@ contract AirdropTest is Test {
     event RootInitialized(bytes32 indexed root);
     event MaxClaimsSet(uint256 indexed oldMaxClaims, uint256 indexed newMaxClaims);
     event TokensWithdrawn(address indexed owner, uint256 amount);
+    event RootUpdateScheduled(bytes32 indexed newRoot, bytes32 indexed operationHash, uint256 executeAfter);
+    event VerifierUpdateScheduled(address indexed newVerifier, bytes32 indexed operationHash, uint256 executeAfter);
+    event MaxClaimsUpdateScheduled(uint256 newMaxClaims, bytes32 indexed operationHash, uint256 executeAfter);
+    event WithdrawalScheduled(uint256 amount, bytes32 indexed operationHash, uint256 executeAfter);
+    event RenounceOwnershipScheduled(bytes32 indexed operationHash, uint256 executeAfter);
 
     function testConstructorEvents() public {
         vm.startPrank(owner);
@@ -225,6 +230,55 @@ contract AirdropTest is Test {
         assertEq(newAirdrop.merkleRoot(), newRoot);
         assertEq(newAirdrop.maxClaims(), 500);
         vm.stopPrank();
+    }
+
+    function testScheduleUpdateRootEvent() public {
+        bytes32 newRoot = bytes32(uint256(789));
+        bytes32 expectedHash = keccak256(abi.encode("updateRoot", newRoot));
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit RootUpdateScheduled(newRoot, expectedHash, block.timestamp + 2 days);
+        airdrop.scheduleUpdateRoot(newRoot);
+    }
+
+    function testScheduleUpdateVerifierEvent() public {
+        address newVerifier = address(0x123);
+        bytes32 expectedHash = keccak256(abi.encode("updateVerifier", newVerifier));
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit VerifierUpdateScheduled(newVerifier, expectedHash, block.timestamp + 2 days);
+        airdrop.scheduleUpdateVerifier(newVerifier);
+    }
+
+    function testScheduleSetMaxClaimsEvent() public {
+        uint256 newMaxClaims = 2000;
+        bytes32 expectedHash = keccak256(abi.encode("setMaxClaims", newMaxClaims));
+
+        vm.prank(owner);
+        vm.expectEmit(false, true, false, true);
+        emit MaxClaimsUpdateScheduled(newMaxClaims, expectedHash, block.timestamp + 2 days);
+        airdrop.scheduleSetMaxClaims(newMaxClaims);
+    }
+
+    function testScheduleWithdrawTokensEvent() public {
+        uint256 amount = 100 * 10 ** 18;
+        bytes32 expectedHash = keccak256(abi.encode("withdrawTokens", amount));
+
+        vm.prank(owner);
+        vm.expectEmit(false, true, false, true);
+        emit WithdrawalScheduled(amount, expectedHash, block.timestamp + 2 days);
+        airdrop.scheduleWithdrawTokens(amount);
+    }
+
+    function testScheduleRenounceOwnershipEvent() public {
+        bytes32 expectedHash = keccak256(abi.encode("renounceOwnership"));
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit RenounceOwnershipScheduled(expectedHash, block.timestamp + 2 days);
+        airdrop.scheduleRenounceOwnership();
     }
 
     function testSetMaxClaimsTimelock() public {

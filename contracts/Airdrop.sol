@@ -120,6 +120,11 @@ contract Airdrop is ReentrancyGuard {
     event Paused(address indexed account);
     event Unpaused(address indexed account);
     event TokensWithdrawn(address indexed owner, uint256 amount);
+    event RootUpdateScheduled(bytes32 indexed newRoot, bytes32 indexed operationHash, uint256 executeAfter);
+    event VerifierUpdateScheduled(address indexed newVerifier, bytes32 indexed operationHash, uint256 executeAfter);
+    event MaxClaimsUpdateScheduled(uint256 newMaxClaims, bytes32 indexed operationHash, uint256 executeAfter);
+    event WithdrawalScheduled(uint256 amount, bytes32 indexed operationHash, uint256 executeAfter);
+    event RenounceOwnershipScheduled(bytes32 indexed operationHash, uint256 executeAfter);
 
     struct ClaimInfo {
         address token;
@@ -221,7 +226,9 @@ contract Airdrop is ReentrancyGuard {
     /// @dev Must be called before renounceOwnership. Subject to 2-day timelock.
     function scheduleRenounceOwnership() external onlyOwner {
         bytes32 operationHash = _hashOperation(abi.encode("renounceOwnership"));
+        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
+        emit RenounceOwnershipScheduled(operationHash, executeAfter);
     }
 
     /// @notice Schedules a Merkle root update
@@ -230,7 +237,9 @@ contract Airdrop is ReentrancyGuard {
     function scheduleUpdateRoot(bytes32 newRoot) external onlyOwner {
         if (newRoot == bytes32(0)) revert InvalidRoot();
         bytes32 operationHash = _hashOperation(abi.encode("updateRoot", newRoot));
+        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
+        emit RootUpdateScheduled(newRoot, operationHash, executeAfter);
     }
 
     /// @notice Schedules a verifier contract update
@@ -239,7 +248,9 @@ contract Airdrop is ReentrancyGuard {
     function scheduleUpdateVerifier(address newVerifier) external onlyOwner {
         if (newVerifier == address(0)) revert InvalidVerifier();
         bytes32 operationHash = _hashOperation(abi.encode("updateVerifier", newVerifier));
+        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
+        emit VerifierUpdateScheduled(newVerifier, operationHash, executeAfter);
     }
 
     /// @notice Schedules a max claims update
@@ -249,7 +260,9 @@ contract Airdrop is ReentrancyGuard {
         if (_maxClaims == 0) revert InvalidMaxClaims();
         if (_maxClaims < claimCount) revert MaxClaimsBelowCurrent();
         bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
+        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
+        emit MaxClaimsUpdateScheduled(_maxClaims, operationHash, executeAfter);
     }
 
     /// @notice Pauses all claim operations
@@ -368,7 +381,9 @@ contract Airdrop is ReentrancyGuard {
     function scheduleWithdrawTokens(uint256 amount) external onlyOwner {
         if (amount > token.balanceOf(address(this))) revert InsufficientBalanceForWithdraw();
         bytes32 operationHash = _hashOperation(abi.encode("withdrawTokens", amount));
+        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
+        emit WithdrawalScheduled(amount, operationHash, executeAfter);
     }
 
     function _withdrawTokensInternal(uint256 amount) internal {
