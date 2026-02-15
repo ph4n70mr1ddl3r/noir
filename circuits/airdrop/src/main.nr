@@ -202,17 +202,26 @@ fn validate_private_key_range(private_key_le_bytes: [u8; 32]) {
 // Validates that the signature's s-value is in the lower half of the curve order.
 // This prevents ECDSA signature malleability where (r, s) and (r, n-s) are both valid.
 // By enforcing low-s, we ensure signature uniqueness.
-// Also validates that the signature is not all zeros.
+// Also validates that the signature is not all zeros and r is non-zero.
 // Note: The signature is in big-endian format (standard ECDSA encoding).
 fn validate_signature_low_s(signature: [u8; 64]) {
-    // Check that signature is not all zeros
-    let mut is_nonzero: bool = false;
-    for i in 0..64 {
+    // Check that r (first 32 bytes) is non-zero
+    let mut r_nonzero: bool = false;
+    for i in 0..32 {
         if signature[i] != 0 {
-            is_nonzero = true;
+            r_nonzero = true;
         }
     }
-    assert(is_nonzero);
+    assert(r_nonzero);
+
+    // Check that s (second 32 bytes) is non-zero
+    let mut s_nonzero: bool = false;
+    for i in 0..32 {
+        if signature[i + 32] != 0 {
+            s_nonzero = true;
+        }
+    }
+    assert(s_nonzero);
 
     // s is the second 32 bytes of the signature (big-endian)
     let mut s_exceeds: bool = false;
@@ -238,6 +247,20 @@ fn validate_signature_low_s(signature: [u8; 64]) {
     }
 
     assert(!s_exceeds);
+}
+
+// Validates that at least one element in the merkle proof path is non-zero.
+// This ensures the proof is not entirely made of zeros which would be invalid.
+fn validate_merkle_proof_nonzero(proof: MerkleProof) {
+    let mut has_nonzero: bool = false;
+    for i in 0..MERKLE_DEPTH {
+        for j in 0..32 {
+            if proof.path[i][j] != 0 {
+                has_nonzero = true;
+            }
+        }
+    }
+    assert(has_nonzero);
 }
 
 // Main circuit entry point.
@@ -273,6 +296,8 @@ fn main(
     validate_private_key_range(private_key_le_bytes);
 
     validate_signature_low_s(signature);
+
+    validate_merkle_proof_nonzero(proof);
 
     verify_private_key_ownership(
         public_key_x,
