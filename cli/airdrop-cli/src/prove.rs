@@ -49,7 +49,6 @@ struct ClaimInput {
     leaf_index: usize,
     #[allow(dead_code)]
     claimer_address: String,
-    #[allow(dead_code)]
     private_key_le_bytes: String,
     #[allow(dead_code)]
     public_key_x: String,

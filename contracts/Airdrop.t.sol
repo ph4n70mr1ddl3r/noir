@@ -518,7 +518,7 @@ contract AirdropTest is Test {
 
     function testAcceptOwnershipNoPendingOwner() public {
         vm.prank(user);
-        vm.expectRevert(Airdrop.InvalidRecipient.selector);
+        vm.expectRevert(Airdrop.NoPendingOwnershipTransfer.selector);
         airdrop.acceptOwnership();
     }
 
