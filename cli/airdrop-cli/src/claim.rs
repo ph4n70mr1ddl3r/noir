@@ -140,7 +140,15 @@ fn load_index_map(path: &Path) -> Result<HashMap<[u8; 20], usize>> {
         }
         let address = parse_address(parts[0]).context("Invalid address format")?;
         let index: usize = parts[1].parse().context("Invalid index format")?;
-        map.insert(address, index);
+        if let std::collections::hash_map::Entry::Vacant(e) = map.entry(address) {
+            e.insert(index);
+        } else {
+            eprintln!(
+                "WARNING: Duplicate address at line {}: 0x{} (keeping first occurrence)",
+                line_num + 1,
+                hex::encode(address)
+            );
+        }
     }
 
     if map.is_empty() {
@@ -388,6 +396,7 @@ pub fn run(mut cli: Cli) -> Result<()> {
     message[12..32].copy_from_slice(&claimer_address);
     let message_hash = Keccak256::digest(message);
     let signature: k256::ecdsa::Signature = signing_key.sign(&message_hash);
+    let signature = signature.normalize_s().unwrap_or(signature);
     drop(signing_key);
     let sig_bytes = signature.to_bytes();
     let mut signature_bytes: [u8; 64] = [0u8; 64];

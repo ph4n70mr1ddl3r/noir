@@ -151,6 +151,17 @@ global SECP256K1_ORDER_LE: [u8; 32] = [
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 ];
 
+// Half of secp256k1 curve order in little-endian format (n/2).
+// Used to prevent ECDSA signature malleability by enforcing low-s values.
+// n = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+// n/2 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
+global SECP256K1_HALF_ORDER_LE: [u8; 32] = [
+    0xA0, 0x20, 0x1B, 0x68, 0x46, 0xF4, 0x92, 0xFE,
+    0xDD, 0x01, 0x45, 0x7A, 0x73, 0x6E, 0x57, 0x5D,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F,
+];
+
 // Validates that a private key is within the valid range for secp256k1.
 // The key must be non-zero and less than the curve order n.
 fn validate_private_key_range(private_key_le_bytes: [u8; 32]) {
@@ -176,6 +187,36 @@ fn validate_private_key_range(private_key_le_bytes: [u8; 32]) {
     }
 
     assert(!key_exceeds);
+}
+
+// Validates that the signature's s-value is in the lower half of the curve order.
+// This prevents ECDSA signature malleability where (r, s) and (r, n-s) are both valid.
+// By enforcing low-s, we ensure signature uniqueness.
+fn validate_signature_low_s(signature: [u8; 64]) {
+    // s is the second 32 bytes of the signature (little-endian)
+    let mut s_exceeds: bool = false;
+    let mut all_equal_so_far: bool = true;
+
+    for i in 0..32 {
+        let s_byte = signature[i + 32];
+        let half_order_byte = SECP256K1_HALF_ORDER_LE[i];
+
+        if all_equal_so_far {
+            if s_byte > half_order_byte {
+                s_exceeds = true;
+            }
+            if s_byte != half_order_byte {
+                all_equal_so_far = false;
+            }
+        }
+    }
+
+    // If s equals exactly half_order, that's also not allowed (must be strictly less)
+    if all_equal_so_far {
+        s_exceeds = true;
+    }
+
+    assert(!s_exceeds);
 }
 
 // Main circuit entry point.
@@ -209,6 +250,8 @@ fn main(
     assert(is_nonzero);
 
     validate_private_key_range(private_key_le_bytes);
+
+    validate_signature_low_s(signature);
 
     verify_private_key_ownership(
         public_key_x,

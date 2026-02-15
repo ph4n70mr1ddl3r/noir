@@ -1561,6 +1561,88 @@ contract AirdropTest is Test {
         assertEq(failingAirdrop.claimCount(), 0);
         assertEq(failingAirdrop.totalClaimed(), 0);
     }
+
+    function testSECP256K1HalfOrder() public view {
+        bytes32 expectedHalfOrder = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0;
+        assertEq(airdrop.SECP256K1_HALF_ORDER(), expectedHalfOrder);
+    }
+
+    function testInvariant_NullifierUniquenessAfterMultipleClaims() public {
+        verifier.setVerify(true);
+
+        bytes32[] memory nullifiers = new bytes32[](20);
+        for (uint256 i = 0; i < 20; i++) {
+            nullifiers[i] = bytes32(uint256(i + 100000));
+        }
+
+        for (uint256 i = 0; i < 20; i++) {
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 1000));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), nullifiers[i], recipient);
+
+            // Invariant: each nullifier should be marked as used exactly once
+            assertTrue(airdrop.isNullifierUsed(nullifiers[i]));
+
+            // Invariant: no other nullifiers should be affected
+            for (uint256 j = 0; j < i; j++) {
+                assertTrue(airdrop.isNullifierUsed(nullifiers[j]));
+            }
+            for (uint256 j = i + 1; j < 20; j++) {
+                assertFalse(airdrop.isNullifierUsed(nullifiers[j]));
+            }
+        }
+    }
+
+    function testInvariant_TokenBalanceMatchesClaimable() public {
+        verifier.setVerify(true);
+
+        uint256 initialBalance = token.balanceOf(address(airdrop));
+        uint256 claimsToMake = 5;
+
+        for (uint256 i = 0; i < claimsToMake; i++) {
+            bytes32 claimNullifier = bytes32(uint256(i + 200000));
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 2000));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+
+            // Invariant: contract balance should decrease by exactly CLAIM_AMOUNT per claim
+            assertEq(
+                token.balanceOf(address(airdrop)),
+                initialBalance - (i + 1) * CLAIM_AMOUNT
+            );
+        }
+
+        // Invariant: totalClaimed should equal the sum of all claims
+        assertEq(airdrop.totalClaimed(), claimsToMake * CLAIM_AMOUNT);
+    }
+
+    function testFuzz_InvariantClaimCountNeverExceedsMaxClaims(uint8 numClaims) public {
+        vm.assume(numClaims > 0);
+        vm.assume(numClaims <= 100);
+        verifier.setVerify(true);
+
+        uint256 claimsMade = 0;
+        for (uint256 i = 0; i < numClaims && claimsMade < MAX_CLAIMS; i++) {
+            bytes32 claimNullifier = bytes32(uint256(i + 300000));
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address recipient = address(uint160(i + 3000));
+
+            vm.prank(recipient);
+            if (claimsMade < MAX_CLAIMS) {
+                airdrop.claim(_mockProof(), claimNullifier, recipient);
+                claimsMade++;
+
+                // Invariant: claimCount should never exceed maxClaims
+                assertLe(airdrop.claimCount(), airdrop.maxClaims());
+            }
+        }
+
+        // Invariant: final state should be consistent
+        assertEq(airdrop.claimCount(), claimsMade);
+        assertEq(airdrop.totalClaimed(), claimsMade * CLAIM_AMOUNT);
+    }
 }
 
 contract ReentrancyToken is IERC20 {

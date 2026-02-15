@@ -50,6 +50,13 @@ contract Airdrop is ReentrancyGuard {
     ///      Value: 0xa1b2c3d4 placed at bytes 28-31 of a 32-byte array.
     bytes4 public constant DOMAIN_SEPARATOR = 0xa1b2c3d4;
 
+    /// @notice Half of the secp256k1 curve order (big-endian)
+    /// @dev Used to validate ECDSA signature low-s values to prevent malleability.
+    ///      n/2 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
+    ///      This value is enforced in the Noir circuit's validate_signature_low_s function.
+    ///      Included here for documentation and cross-component consistency verification.
+    bytes32 public constant SECP256K1_HALF_ORDER = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0;
+
     error NullifierAlreadyUsed();
     error InvalidProof();
     error InvalidRoot();
@@ -198,6 +205,9 @@ contract Airdrop is ReentrancyGuard {
         if (msg.sender != owner) revert NotOwner();
     }
 
+    /// @notice Hashes operation data for timelock scheduling
+    /// @param data The encoded operation data
+    /// @return result The keccak256 hash of the operation data
     function _hashOperation(bytes memory data) internal pure returns (bytes32 result) {
         assembly ("memory-safe") {
             let ptr := add(data, 32)
@@ -334,6 +344,9 @@ contract Airdrop is ReentrancyGuard {
         if (!isValid) revert InvalidProof();
 
         usedNullifiers[nullifier] = true;
+        // Safety: totalClaimed is bounded by maxClaims * CLAIM_AMOUNT.
+        // maxClaims is set at construction and can only increase via timelocked setMaxClaims.
+        // With uint256 max, overflow is impossible: maxClaims * CLAIM_AMOUNT << 2^256.
         unchecked {
             totalClaimed += CLAIM_AMOUNT;
             ++currentClaimCount;
@@ -414,6 +427,7 @@ contract Airdrop is ReentrancyGuard {
             if (!isValid) revert InvalidProof();
 
             usedNullifiers[claimParams.nullifier] = true;
+            // Safety: currentClaimCount is bounded by maxClaims, batchTotal by batch size * CLAIM_AMOUNT
             unchecked {
                 ++currentClaimCount;
                 batchTotal += CLAIM_AMOUNT;
@@ -431,6 +445,7 @@ contract Airdrop is ReentrancyGuard {
             }
         }
 
+        // Safety: batchTotal is bounded by MAX_BATCH_CLAIMS * CLAIM_AMOUNT which cannot overflow uint256
         unchecked {
             totalClaimed += batchTotal;
         }
@@ -493,6 +508,9 @@ contract Airdrop is ReentrancyGuard {
         emit WithdrawalScheduled(amount, operationHash, executeAfter);
     }
 
+    /// @notice Internal function to withdraw tokens to owner
+    /// @dev Performs the actual token transfer after timelock verification
+    /// @param amount Amount of tokens to withdraw
     function _withdrawTokensInternal(uint256 amount) internal {
         if (amount > token.balanceOf(address(this))) revert InsufficientBalanceForWithdraw();
         (bool success, bytes memory data) =
