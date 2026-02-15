@@ -1,10 +1,7 @@
 use dep::keccak256::keccak256;
 
 global MERKLE_DEPTH: u32 = 26;
-global DOMAIN_SEPARATOR_BYTE_0: u8 = 0xa1;
-global DOMAIN_SEPARATOR_BYTE_1: u8 = 0xb2;
-global DOMAIN_SEPARATOR_BYTE_2: u8 = 0xc3;
-global DOMAIN_SEPARATOR_BYTE_3: u8 = 0xd4;
+global DOMAIN_SEPARATOR: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 
 struct MerkleProof {
     path: [[u8; 32]; MERKLE_DEPTH],
@@ -57,10 +54,10 @@ fn derive_address_from_pubkey(pub_key_x: [u8; 32], pub_key_y: [u8; 32]) -> Field
 
 fn compute_nullifier(private_key_le_bytes: [u8; 32]) -> Field {
     let mut domain_padded: [u8; 32] = [0; 32];
-    domain_padded[28] = DOMAIN_SEPARATOR_BYTE_0;
-    domain_padded[29] = DOMAIN_SEPARATOR_BYTE_1;
-    domain_padded[30] = DOMAIN_SEPARATOR_BYTE_2;
-    domain_padded[31] = DOMAIN_SEPARATOR_BYTE_3;
+    domain_padded[28] = DOMAIN_SEPARATOR[0];
+    domain_padded[29] = DOMAIN_SEPARATOR[1];
+    domain_padded[30] = DOMAIN_SEPARATOR[2];
+    domain_padded[31] = DOMAIN_SEPARATOR[3];
 
     let mut input: [u8; 64] = [0; 64];
     for i in 0..32 {

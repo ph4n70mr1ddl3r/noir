@@ -1151,6 +1151,54 @@ contract AirdropTest is Test {
         airdrop.batchClaim(claims);
     }
 
+    function testBatchClaimIntraBatchDuplicateNullifier() public {
+        verifier.setVerify(true);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+        claims[1] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.NullifierAlreadyUsed.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testBatchClaimMaxClaimsExceeded() public {
+        verifier.setVerify(true);
+
+        vm.startPrank(owner);
+        MockERC20 smallToken = new MockERC20();
+        smallToken.mint(owner, CLAIM_AMOUNT * 5);
+        MockVerifier smallVerifier = new MockVerifier();
+        smallVerifier.setVerify(true);
+        Airdrop smallAirdrop = new Airdrop(
+            address(smallToken), address(smallVerifier), merkleRoot, 2
+        );
+        smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT * 2);
+        vm.stopPrank();
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 100)),
+                recipient: address(uint160(i + 200))
+            });
+        }
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.MaxClaimsExceeded.selector);
+        smallAirdrop.batchClaim(claims);
+    }
+
     function testBatchClaimWhenPaused() public {
         verifier.setVerify(true);
         vm.prank(owner);

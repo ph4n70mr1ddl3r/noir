@@ -81,6 +81,7 @@ pub fn compute_nullifier(private_key_bytes: &[u8; 32]) -> Result<[u8; 32]> {
     le_key.reverse();
     let mut hasher = Keccak256::new();
     hasher.update(le_key);
+    le_key.zeroize();
     hasher.update(domain_padded);
     let result = hasher.finalize();
     Ok(result.into())

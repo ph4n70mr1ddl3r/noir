@@ -127,7 +127,7 @@ contract Airdrop is ReentrancyGuard {
     event MaxClaimsUpdateScheduled(uint256 newMaxClaims, bytes32 indexed operationHash, uint256 executeAfter);
     event WithdrawalScheduled(uint256 amount, bytes32 indexed operationHash, uint256 executeAfter);
     event RenounceOwnershipScheduled(bytes32 indexed operationHash, uint256 executeAfter);
-    event BatchClaimed(address indexed recipient, uint256 claimCount, uint256 totalAmount);
+    event BatchClaimed(address indexed recipient, uint256 indexed claimCount, uint256 totalAmount);
 
     struct ClaimInfo {
         address token;
@@ -336,12 +336,20 @@ contract Airdrop is ReentrancyGuard {
         emit Claimed(recipient, nullifier, currentClaimCount);
     }
 
+    /// @notice Parameters for a single claim within a batch
+    /// @param proof The zero-knowledge proof proving membership in the Merkle tree
+    /// @param nullifier Unique identifier derived from H(private_key || domain_separator)
+    /// @param recipient Address to receive the tokens
     struct ClaimParams {
         uint256[] proof;
         bytes32 nullifier;
         address recipient;
     }
 
+    /// @notice Claims multiple tokens in a single transaction
+    /// @dev Gas-efficient batch operation with pre-validation of all inputs.
+    ///      Reverts if any claim in the batch would fail.
+    /// @param claims Array of claim parameters, maximum MAX_BATCH_CLAIMS (10)
     function batchClaim(ClaimParams[] calldata claims)
         external
         nonReentrant
@@ -352,12 +360,16 @@ contract Airdrop is ReentrancyGuard {
 
         uint256 currentClaimCount = claimCount;
         uint256 currentMaxClaims = maxClaims;
-        IERC20 token_ = token;
-        bytes32 merkleRoot_ = merkleRoot;
+        if (currentClaimCount + claims.length > currentMaxClaims) revert MaxClaimsExceeded();
 
+        IERC20 token_ = token;
+        if (token_.balanceOf(address(this)) < CLAIM_AMOUNT * claims.length) {
+            revert InsufficientBalance();
+        }
+
+        bytes32 merkleRoot_ = merkleRoot;
         uint256 batchTotal = 0;
         address firstRecipient = address(0);
-        uint256 successfulClaims = 0;
 
         for (uint256 i = 0; i < claims.length;) {
             ClaimParams calldata claimParams = claims[i];
@@ -368,13 +380,17 @@ contract Airdrop is ReentrancyGuard {
             if (claimParams.recipient == address(this)) revert ClaimToContract();
             if (claimParams.proof.length == 0) revert EmptyProof();
 
-            if (currentClaimCount >= currentMaxClaims) revert MaxClaimsExceeded();
+            for (uint256 j = 0; j < i;) {
+                if (claims[j].nullifier == claimParams.nullifier) {
+                    revert NullifierAlreadyUsed();
+                }
+                unchecked {
+                    ++j;
+                }
+            }
 
             if (i == 0) {
                 firstRecipient = claimParams.recipient;
-                if (token_.balanceOf(address(this)) < CLAIM_AMOUNT * claims.length) {
-                    revert InsufficientBalance();
-                }
             }
 
             uint256[] memory publicInputs = new uint256[](3);
@@ -388,7 +404,6 @@ contract Airdrop is ReentrancyGuard {
             usedNullifiers[claimParams.nullifier] = true;
             unchecked {
                 ++currentClaimCount;
-                ++successfulClaims;
                 batchTotal += CLAIM_AMOUNT;
             }
 
@@ -409,7 +424,7 @@ contract Airdrop is ReentrancyGuard {
         }
         claimCount = currentClaimCount;
 
-        emit BatchClaimed(firstRecipient, successfulClaims, batchTotal);
+        emit BatchClaimed(firstRecipient, claims.length, batchTotal);
     }
 
     /// @notice Updates the Merkle root after timelock expires
