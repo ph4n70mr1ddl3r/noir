@@ -221,9 +221,10 @@ contract Airdrop is ReentrancyGuard {
     function renounceOwnership() external onlyOwner {
         bytes32 operationHash = _hashOperation(abi.encode("renounceOwnership"));
         _executeTimelockedOperation(operationHash);
-        emit OwnershipTransferred(owner, address(0));
+        address previousOwner = owner;
         owner = address(0);
         delete pendingOwner;
+        emit OwnershipTransferred(previousOwner, address(0));
     }
 
     /// @notice Schedules ownership renunciation

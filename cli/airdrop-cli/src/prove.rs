@@ -12,6 +12,8 @@ use zeroize::Zeroize;
 
 use airdrop_cli::{validate_private_key_range, write_file_atomic};
 
+const MAX_CLAIM_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
 #[derive(Parser, Debug)]
 #[command(name = "prove")]
 #[command(about = "Generate Noir proof from claim JSON", long_about = None)]
@@ -210,6 +212,14 @@ pub fn run(cli: &Cli) -> Result<()> {
     }
 
     println!("Reading claim from {:?}...", cli.input);
+    let metadata = fs::metadata(&cli.input).context("Failed to read claim file metadata")?;
+    if metadata.len() > MAX_CLAIM_FILE_SIZE {
+        anyhow::bail!(
+            "Claim file too large: {} bytes (max {} bytes)",
+            metadata.len(),
+            MAX_CLAIM_FILE_SIZE
+        );
+    }
     let claim_content = fs::read_to_string(&cli.input).context("Failed to read claim file")?;
     let claim: ClaimInput =
         serde_json::from_str(&claim_content).context("Failed to parse claim JSON")?;

@@ -105,7 +105,15 @@ fn load_index_map(path: &Path) -> Result<HashMap<[u8; 20], usize>> {
     }
     let file = File::open(path).context("Failed to open index map file")?;
     let metadata = file.metadata().context("Failed to get file metadata")?;
-    let estimated_entries = (metadata.len() as usize / 64).max(16);
+    let file_size = metadata.len();
+    if file_size > MAX_INDEX_MAP_FILE_SIZE {
+        anyhow::bail!(
+            "Index map file too large: {} bytes (max {} bytes)",
+            file_size,
+            MAX_INDEX_MAP_FILE_SIZE
+        );
+    }
+    let estimated_entries = (file_size as usize / 64).max(16);
     let reader = BufReader::new(file);
     let mut map = HashMap::with_capacity(estimated_entries);
 
@@ -136,6 +144,8 @@ fn load_index_map(path: &Path) -> Result<HashMap<[u8; 20], usize>> {
 }
 
 const MAX_TREE_SIZE: usize = 100_000_000;
+const MAX_INDEX_MAP_FILE_SIZE: u64 = 100 * 1024 * 1024;
+const MAX_TREE_FILE_SIZE: u64 = 500 * 1024 * 1024;
 
 /// Loads and validates a Merkle tree from a file.
 ///
@@ -156,6 +166,15 @@ fn load_merkle_tree(path: &Path) -> Result<Vec<Vec<[u8; 32]>>> {
         anyhow::bail!("Merkle tree file does not exist: {:?}", path);
     }
     let file = File::open(path).context("Failed to open Merkle tree file")?;
+    let metadata = file.metadata().context("Failed to get file metadata")?;
+    let file_size = metadata.len();
+    if file_size > MAX_TREE_FILE_SIZE {
+        anyhow::bail!(
+            "Merkle tree file too large: {} bytes (max {} bytes)",
+            file_size,
+            MAX_TREE_FILE_SIZE
+        );
+    }
     let reader = BufReader::new(file);
 
     let mut level_entries: Vec<HashMap<usize, [u8; 32]>> = Vec::new();
