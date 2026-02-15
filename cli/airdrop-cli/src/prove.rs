@@ -243,7 +243,7 @@ fn verify_circuit_version(circuit_path: &Path) -> Result<()> {
     }
 
     eprintln!(
-        "WARNING: No version field found in Nargo.toml [package] section. Expected version '{}'.",
+        "WARNING: No version field found in Nargo.toml [package] section. Expected version '{}'. Proceeding anyway, but circuit compatibility cannot be verified.",
         EXPECTED_CIRCUIT_VERSION
     );
     Ok(())

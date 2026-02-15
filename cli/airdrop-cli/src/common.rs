@@ -300,8 +300,8 @@ pub fn get_merkle_proof(
 /// - Absolute paths (starting with /)
 /// - Paths containing parent directory references (..)
 /// - Paths starting with ~ (home directory expansion)
+/// - Symlinks that resolve to locations outside the current directory
 #[must_use]
-#[inline]
 pub fn is_path_safe<P: AsRef<Path>>(path: P) -> bool {
     let path = path.as_ref();
 
@@ -317,6 +317,26 @@ pub fn is_path_safe<P: AsRef<Path>>(path: P) -> bool {
 
     if path_str.starts_with('~') {
         return false;
+    }
+
+    if let Ok(cwd) = std::fs::canonicalize(".") {
+        let full_path = cwd.join(path);
+
+        if full_path.exists() {
+            if let Ok(resolved) = full_path.canonicalize() {
+                if !resolved.starts_with(&cwd) {
+                    return false;
+                }
+            }
+        } else if let Some(parent) = full_path.parent() {
+            if parent.exists() {
+                if let Ok(resolved_parent) = parent.canonicalize() {
+                    if !resolved_parent.starts_with(&cwd) {
+                        return false;
+                    }
+                }
+            }
+        }
     }
 
     true
@@ -672,5 +692,51 @@ mod tests {
     fn test_is_path_safe_home() {
         assert!(!is_path_safe("~/secrets/key"));
         assert!(!is_path_safe("~root/.ssh"));
+    }
+
+    #[test]
+    fn test_is_path_safe_symlink_escape() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let original_cwd = std::env::current_dir().unwrap();
+
+        let nested_dir = temp_dir.path().join("nested");
+        std::fs::create_dir(&nested_dir).unwrap();
+        std::env::set_current_dir(&nested_dir).unwrap();
+
+        let outside_dir = temp_dir.path().join("outside_safe_zone");
+        std::fs::create_dir(&outside_dir).unwrap();
+        let outside_file = outside_dir.join("secret.txt");
+        let mut file = std::fs::File::create(&outside_file).unwrap();
+        file.write_all(b"secret").unwrap();
+        drop(file);
+
+        let symlink_path = std::path::Path::new("escape_link");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            symlink(&outside_file, symlink_path).unwrap();
+            assert!(
+                !is_path_safe("escape_link"),
+                "symlink pointing outside cwd should be rejected"
+            );
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = symlink_path;
+        }
+
+        std::env::set_current_dir(original_cwd).unwrap();
+    }
+
+    #[test]
+    fn test_is_path_safe_nonexistent_file() {
+        assert!(is_path_safe("nonexistent_dir/newfile.txt"));
+        assert!(is_path_safe("newfile.txt"));
+    }
+
+    #[test]
+    fn test_is_path_safe_deep_nested() {
+        assert!(is_path_safe("a/b/c/d/e/f/output.txt"));
     }
 }

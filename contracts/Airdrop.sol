@@ -45,6 +45,14 @@ contract ReentrancyGuard {
 /// Domain Separator: 0xa1b2c3d4 (bytes 28-31 of 32-byte array)
 /// Used in nullifier computation to prevent cross-context replay attacks.
 /// Must match the value in Noir circuit (main.nr) and CLI (common.rs).
+///
+/// Security Consideration - Signature Replay:
+/// The signed message in the Noir circuit contains only the claimer address.
+/// This means signatures could theoretically be replayed on other chains or
+/// contracts using the same address derivation scheme. The DOMAIN_SEPARATOR
+/// provides some protection by scoping nullifiers to this specific deployment
+/// context. For multi-chain deployments, consider using a unique DOMAIN_SEPARATOR
+/// per chain or upgrading to EIP-712 typed data signing.
 contract Airdrop is ReentrancyGuard {
     /// @notice Domain separator for nullifier computation (bytes 28-31 of 32-byte array)
     /// @dev This constant is stored for on-chain verification purposes and documentation.

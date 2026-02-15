@@ -8,6 +8,14 @@ global MERKLE_DEPTH: u32 = 26;
 
 // Domain separator for nullifier computation to prevent cross-context replay attacks.
 // Must match the value in Solidity contract (Airdrop.sol) and CLI (common.rs).
+//
+// SECURITY NOTE: The value 0xa1b2c3d4 is a randomly chosen identifier to distinguish
+// this airdrop's nullifiers from other systems. For multi-chain deployments, use a
+// unique DOMAIN_SEPARATOR per chain to prevent cross-chain nullifier collisions.
+//
+// The signed message contains only the claimer address. For enhanced security in
+// multi-contract scenarios, consider including chain ID and contract address in
+// the message (EIP-712 style). This would require a circuit upgrade.
 global DOMAIN_SEPARATOR: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 
 // Merkle proof structure containing the sibling hashes and direction indicators.

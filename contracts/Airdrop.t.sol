@@ -2282,6 +2282,66 @@ contract AirdropTest is Test {
 
         assertEq(airdrop.pendingOwner(), address(0));
     }
+
+    function testTimelockExpirationExactBoundary() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        uint256 scheduledTime = airdrop.getOperationSchedule(operationHash);
+
+        vm.warp(scheduledTime + 14 days - 1);
+        airdrop.updateRoot(newRoot);
+        assertEq(airdrop.merkleRoot(), newRoot);
+        vm.stopPrank();
+    }
+
+    function testTimelockExpirationExactBoundaryFails() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        uint256 scheduledTime = airdrop.getOperationSchedule(operationHash);
+
+        vm.warp(scheduledTime + 14 days + 1);
+        vm.expectRevert(Airdrop.OperationExpired.selector);
+        airdrop.updateRoot(newRoot);
+        vm.stopPrank();
+    }
+
+    function testTimelockMinimumDelayExact() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        uint256 scheduledTime = airdrop.getOperationSchedule(operationHash);
+
+        vm.warp(scheduledTime);
+        airdrop.updateRoot(newRoot);
+        assertEq(airdrop.merkleRoot(), newRoot);
+        vm.stopPrank();
+    }
+
+    function testTimelockOneSecondBeforeDelay() public {
+        bytes32 newRoot = bytes32(uint256(789));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        uint256 scheduledTime = airdrop.getOperationSchedule(operationHash);
+
+        vm.warp(scheduledTime - 1);
+        vm.expectRevert(Airdrop.TimelockNotExpired.selector);
+        airdrop.updateRoot(newRoot);
+        vm.stopPrank();
+    }
 }
 
 contract ReentrancyToken is IERC20 {
