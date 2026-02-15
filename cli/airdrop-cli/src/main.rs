@@ -1,14 +1,11 @@
 #![forbid(unsafe_code)]
+#![allow(unreachable_pub)]
 
 use clap::{Parser, Subcommand};
 
-#[allow(dead_code, unreachable_pub)]
 mod build_tree;
-#[allow(dead_code, unreachable_pub)]
 mod claim;
-#[allow(dead_code, unreachable_pub)]
 mod common;
-#[allow(dead_code, unreachable_pub)]
 mod prove;
 
 #[derive(Parser, Debug)]
