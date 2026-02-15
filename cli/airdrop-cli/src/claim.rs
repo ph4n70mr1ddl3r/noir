@@ -376,10 +376,18 @@ pub fn run(mut cli: Cli) -> Result<()> {
     private_key_bytes.copy_from_slice(&key_bytes);
     key_bytes.zeroize();
 
-    validate_private_key_range(&private_key_bytes)
-        .context("Invalid private key: must be within secp256k1 curve order")?;
+    if let Err(_) = validate_private_key_range(&private_key_bytes) {
+        private_key_bytes.zeroize();
+        anyhow::bail!("Invalid private key: must be within secp256k1 curve order");
+    }
 
-    let signing_key = SigningKey::from_slice(&private_key_bytes).context("Invalid private key")?;
+    let signing_key = match SigningKey::from_slice(&private_key_bytes) {
+        Ok(key) => key,
+        Err(_) => {
+            private_key_bytes.zeroize();
+            anyhow::bail!("Invalid private key");
+        }
+    };
 
     println!("Deriving address from private key...");
     let (claimer_address, public_key_x, public_key_y) = private_key_to_address(&signing_key);

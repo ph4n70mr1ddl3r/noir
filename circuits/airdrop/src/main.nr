@@ -122,6 +122,15 @@ fn verify_private_key_ownership(
     signature: [u8; 64],
     claimed_address: Field,
 ) {
+    // Validate that public key is not all zeros
+    let mut pubkey_nonzero: bool = false;
+    for i in 0..32 {
+        if public_key_x[i] != 0 || public_key_y[i] != 0 {
+            pubkey_nonzero = true;
+        }
+    }
+    assert(pubkey_nonzero);
+
     let derived_address = derive_address_from_pubkey(public_key_x, public_key_y);
     assert(derived_address == claimed_address);
 
@@ -193,8 +202,18 @@ fn validate_private_key_range(private_key_le_bytes: [u8; 32]) {
 // Validates that the signature's s-value is in the lower half of the curve order.
 // This prevents ECDSA signature malleability where (r, s) and (r, n-s) are both valid.
 // By enforcing low-s, we ensure signature uniqueness.
+// Also validates that the signature is not all zeros.
 // Note: The signature is in big-endian format (standard ECDSA encoding).
 fn validate_signature_low_s(signature: [u8; 64]) {
+    // Check that signature is not all zeros
+    let mut is_nonzero: bool = false;
+    for i in 0..64 {
+        if signature[i] != 0 {
+            is_nonzero = true;
+        }
+    }
+    assert(is_nonzero);
+
     // s is the second 32 bytes of the signature (big-endian)
     let mut s_exceeds: bool = false;
     let mut all_equal_so_far: bool = true;

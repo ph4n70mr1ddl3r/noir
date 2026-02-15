@@ -287,7 +287,7 @@ fn generate_noir_proof(
 }
 
 fn read_private_key(key_opt: Option<&String>) -> Result<[u8; 32]> {
-    let key_str = match key_opt {
+    let mut key_str = match key_opt {
         Some(k) if k == "-" => {
             let mut buffer = String::new();
             std::io::stdin()
@@ -300,7 +300,9 @@ fn read_private_key(key_opt: Option<&String>) -> Result<[u8; 32]> {
         Some(k) => k.clone(),
         None => anyhow::bail!("Private key is required for proof generation"),
     };
-    parse_private_key(&key_str)
+    let result = parse_private_key(&key_str);
+    key_str.zeroize();
+    result
 }
 
 fn parse_private_key_le_from_claim(claim: &ClaimInput) -> Result<Option<[u8; 32]>> {
