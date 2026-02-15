@@ -376,9 +376,9 @@ pub fn run(mut cli: Cli) -> Result<()> {
     private_key_bytes.copy_from_slice(&key_bytes);
     key_bytes.zeroize();
 
-    if let Err(_) = validate_private_key_range(&private_key_bytes) {
+    if let Err(e) = validate_private_key_range(&private_key_bytes) {
         private_key_bytes.zeroize();
-        anyhow::bail!("Invalid private key: must be within secp256k1 curve order");
+        anyhow::bail!("Invalid private key: {}", e);
     }
 
     let signing_key = match SigningKey::from_slice(&private_key_bytes) {
@@ -391,6 +391,11 @@ pub fn run(mut cli: Cli) -> Result<()> {
 
     println!("Deriving address from private key...");
     let (claimer_address, public_key_x, public_key_y) = private_key_to_address(&signing_key);
+
+    println!("Checking eligibility...");
+    let leaf_index = index_map.get(&claimer_address).copied().context(
+        "Address not found in qualified list - you may not be eligible for this airdrop",
+    )?;
 
     println!("Computing nullifier...");
     let nullifier = compute_nullifier(&private_key_bytes)?;
@@ -410,11 +415,6 @@ pub fn run(mut cli: Cli) -> Result<()> {
     let mut signature_bytes: [u8; 64] = [0u8; 64];
     signature_bytes.copy_from_slice(&sig_bytes);
 
-    println!("Looking up address in index map...");
-    let leaf_index = index_map
-        .get(&claimer_address)
-        .copied()
-        .context("Address not found in qualified list")?;
     let tree_size = tree.first().map(|l| l.len()).unwrap_or(0);
     if leaf_index >= tree_size {
         anyhow::bail!(

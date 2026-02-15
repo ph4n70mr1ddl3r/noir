@@ -18,6 +18,11 @@ const SIGNATURE_LENGTH: usize = 64;
 const PUBLIC_KEY_COORD_LENGTH: usize = 32;
 const EXPECTED_CIRCUIT_VERSION: &str = "0.1.0";
 
+const SECP256K1_HALF_ORDER_BE: [u8; 32] = [
+    0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x5D, 0x57, 0x6E, 0x73, 0x57, 0xA4, 0x50, 0x1D, 0xDF, 0xE9, 0x2F, 0x46, 0x68, 0x1B, 0x20, 0xA0,
+];
+
 #[derive(Parser, Debug)]
 #[command(name = "prove")]
 #[command(about = "Generate Noir proof from claim JSON", long_about = None)]
@@ -121,6 +126,38 @@ fn validate_signature(value: &str) -> Result<[u8; 64]> {
     }
     let mut bytes = [0u8; 64];
     hex::decode_to_slice(cleaned, &mut bytes).context("Invalid hex encoding for signature")?;
+
+    // Check that r (first 32 bytes) is non-zero
+    let r_nonzero = bytes[..32].iter().any(|&b| b != 0);
+    if !r_nonzero {
+        anyhow::bail!("Invalid signature: r component is zero");
+    }
+
+    // Check that s (second 32 bytes) is non-zero
+    let s_nonzero = bytes[32..64].iter().any(|&b| b != 0);
+    if !s_nonzero {
+        anyhow::bail!("Invalid signature: s component is zero");
+    }
+
+    // Check that s is in lower half of curve order (low-s requirement)
+    let mut s_exceeds = false;
+    let mut all_equal = true;
+    for i in 0..32 {
+        if all_equal {
+            match bytes[32 + i].cmp(&SECP256K1_HALF_ORDER_BE[i]) {
+                std::cmp::Ordering::Greater => s_exceeds = true,
+                std::cmp::Ordering::Less => all_equal = false,
+                std::cmp::Ordering::Equal => {}
+            }
+        }
+    }
+    if all_equal {
+        s_exceeds = true;
+    }
+    if s_exceeds {
+        anyhow::bail!("Invalid signature: s component exceeds half order (not low-s)");
+    }
+
     Ok(bytes)
 }
 

@@ -249,6 +249,9 @@ fn validate_signature_low_s(signature: [u8; 64]) {
     assert(!s_exceeds);
 }
 
+// Maximum valid Ethereum address value (2^160 - 1)
+global MAX_ADDRESS: Field = 0x10000000000000000000000000000000000000000;
+
 // Validates that at least one element in the merkle proof path is non-zero.
 // This ensures the proof is not entirely made of zeros which would be invalid.
 fn validate_merkle_proof_nonzero(proof: MerkleProof) {
@@ -282,8 +285,10 @@ fn main(
 ) {
     assert(merkle_root != 0);
     assert(recipient != 0);
+    assert(recipient < MAX_ADDRESS);
     assert(public_nullifier != 0);
     assert(claimed_address != 0);
+    assert(claimed_address < MAX_ADDRESS);
 
     let mut is_nonzero: bool = false;
     for i in 0..32 {
