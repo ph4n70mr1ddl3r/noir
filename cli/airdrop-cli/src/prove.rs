@@ -736,4 +736,103 @@ mod tests {
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Nargo.toml"));
     }
+
+    #[test]
+    fn test_validate_signature_valid() {
+        let sig = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let result = validate_signature(sig);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_signature_invalid_length() {
+        let sig = "0x1234";
+        let result = validate_signature(sig);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_public_key_coord_valid() {
+        let coord = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let result = validate_public_key_coord(coord, "test_coord");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_public_key_coord_invalid_length() {
+        let coord = "0x1234";
+        let result = validate_public_key_coord(coord, "test_coord");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_merkle_proof_element_valid() {
+        let elem = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let result = validate_merkle_proof_element(elem, 0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_merkle_proof_element_invalid_length() {
+        let elem = "0x1234";
+        let result = validate_merkle_proof_element(elem, 0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("merkle_proof[0]"));
+    }
+
+    #[test]
+    fn test_validate_merkle_proof_element_invalid_hex() {
+        let elem = "0xghijklmnopqrstuvwxyz1234567890abcdef1234567890abcdef1234567890abcd";
+        let result = validate_merkle_proof_element(elem, 5);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("merkle_proof[5]"));
+    }
+
+    #[test]
+    fn test_verify_circuit_version_valid() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let nargo_path = temp_dir.path().join("Nargo.toml");
+        let mut file = std::fs::File::create(&nargo_path).unwrap();
+        writeln!(file, "[package]\nname = \"test\"\nversion = \"0.1.0\"").unwrap();
+        drop(file);
+
+        let result = verify_circuit_version(temp_dir.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_circuit_version_mismatch() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let nargo_path = temp_dir.path().join("Nargo.toml");
+        let mut file = std::fs::File::create(&nargo_path).unwrap();
+        writeln!(file, "[package]\nname = \"test\"\nversion = \"0.2.0\"").unwrap();
+        drop(file);
+
+        let result = verify_circuit_version(temp_dir.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("version mismatch"));
+    }
+
+    #[test]
+    fn test_verify_circuit_version_missing_file() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let result = verify_circuit_version(temp_dir.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Nargo.toml"));
+    }
+
+    #[test]
+    fn test_verify_circuit_version_missing_version_field() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let nargo_path = temp_dir.path().join("Nargo.toml");
+        let mut file = std::fs::File::create(&nargo_path).unwrap();
+        writeln!(file, "[package]\nname = \"test\"").unwrap();
+        drop(file);
+
+        let result = verify_circuit_version(temp_dir.path());
+        assert!(result.is_ok());
+    }
 }
