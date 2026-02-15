@@ -79,6 +79,7 @@ contract Airdrop is ReentrancyGuard {
     error InvalidNullifier();
     error EmptyBatch();
     error BatchTooLarge();
+    error BatchClaimsTooLarge();
     error NoPendingOwnershipTransfer();
 
     address public owner;
@@ -92,6 +93,7 @@ contract Airdrop is ReentrancyGuard {
 
     uint256 public constant CLAIM_AMOUNT = 100 * 10 ** 18;
     uint256 public constant MAX_BATCH_SIZE = 50;
+    uint256 public constant MAX_BATCH_CLAIMS = 10;
     uint256 public totalClaimed;
     uint256 public claimCount;
     // Maximum number of claims allowed to prevent contract draining
@@ -125,6 +127,7 @@ contract Airdrop is ReentrancyGuard {
     event MaxClaimsUpdateScheduled(uint256 newMaxClaims, bytes32 indexed operationHash, uint256 executeAfter);
     event WithdrawalScheduled(uint256 amount, bytes32 indexed operationHash, uint256 executeAfter);
     event RenounceOwnershipScheduled(bytes32 indexed operationHash, uint256 executeAfter);
+    event BatchClaimed(address indexed recipient, uint256 claimCount, uint256 totalAmount);
 
     struct ClaimInfo {
         address token;
@@ -206,9 +209,10 @@ contract Airdrop is ReentrancyGuard {
     function acceptOwnership() external {
         if (pendingOwner == address(0)) revert NoPendingOwnershipTransfer();
         if (msg.sender != pendingOwner) revert NotOwner();
-        emit OwnershipTransferred(owner, pendingOwner);
+        address previousOwner = owner;
         owner = pendingOwner;
         delete pendingOwner;
+        emit OwnershipTransferred(previousOwner, owner);
     }
 
     /// @notice Renounces ownership permanently
@@ -330,6 +334,82 @@ contract Airdrop is ReentrancyGuard {
         if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
 
         emit Claimed(recipient, nullifier, currentClaimCount);
+    }
+
+    struct ClaimParams {
+        uint256[] proof;
+        bytes32 nullifier;
+        address recipient;
+    }
+
+    function batchClaim(ClaimParams[] calldata claims)
+        external
+        nonReentrant
+        whenNotPaused
+    {
+        if (claims.length == 0) revert EmptyBatch();
+        if (claims.length > MAX_BATCH_CLAIMS) revert BatchClaimsTooLarge();
+
+        uint256 currentClaimCount = claimCount;
+        uint256 currentMaxClaims = maxClaims;
+        IERC20 token_ = token;
+        bytes32 merkleRoot_ = merkleRoot;
+
+        uint256 batchTotal = 0;
+        address firstRecipient = address(0);
+        uint256 successfulClaims = 0;
+
+        for (uint256 i = 0; i < claims.length;) {
+            ClaimParams calldata claimParams = claims[i];
+
+            if (claimParams.nullifier == bytes32(0)) revert InvalidNullifier();
+            if (usedNullifiers[claimParams.nullifier]) revert NullifierAlreadyUsed();
+            if (claimParams.recipient == address(0)) revert InvalidRecipient();
+            if (claimParams.recipient == address(this)) revert ClaimToContract();
+            if (claimParams.proof.length == 0) revert EmptyProof();
+
+            if (currentClaimCount >= currentMaxClaims) revert MaxClaimsExceeded();
+
+            if (i == 0) {
+                firstRecipient = claimParams.recipient;
+                if (token_.balanceOf(address(this)) < CLAIM_AMOUNT * claims.length) {
+                    revert InsufficientBalance();
+                }
+            }
+
+            uint256[] memory publicInputs = new uint256[](3);
+            publicInputs[0] = uint256(merkleRoot_);
+            publicInputs[1] = uint256(uint160(claimParams.recipient));
+            publicInputs[2] = uint256(claimParams.nullifier);
+
+            bool isValid = verifier.verify(claimParams.proof, publicInputs);
+            if (!isValid) revert InvalidProof();
+
+            usedNullifiers[claimParams.nullifier] = true;
+            unchecked {
+                ++currentClaimCount;
+                ++successfulClaims;
+                batchTotal += CLAIM_AMOUNT;
+            }
+
+            (bool success, bytes memory data) = address(token_)
+                .call(abi.encodeWithSelector(IERC20.transfer.selector, claimParams.recipient, CLAIM_AMOUNT));
+            if (!success) revert TransferFailed();
+            if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
+
+            emit Claimed(claimParams.recipient, claimParams.nullifier, currentClaimCount);
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        unchecked {
+            totalClaimed += batchTotal;
+        }
+        claimCount = currentClaimCount;
+
+        emit BatchClaimed(firstRecipient, successfulClaims, batchTotal);
     }
 
     /// @notice Updates the Merkle root after timelock expires

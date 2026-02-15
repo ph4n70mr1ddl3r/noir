@@ -214,6 +214,7 @@ contract AirdropTest is Test {
     event MaxClaimsUpdateScheduled(uint256 newMaxClaims, bytes32 indexed operationHash, uint256 executeAfter);
     event WithdrawalScheduled(uint256 amount, bytes32 indexed operationHash, uint256 executeAfter);
     event RenounceOwnershipScheduled(bytes32 indexed operationHash, uint256 executeAfter);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     function testConstructorEvents() public {
         vm.startPrank(owner);
@@ -1069,6 +1070,119 @@ contract AirdropTest is Test {
         vm.prank(user);
         vm.expectRevert(Airdrop.MaxClaimsExceeded.selector);
         singleAirdrop.claim(_mockProof(), nullifier2, user);
+    }
+
+    function testBatchClaimSuccess() public {
+        verifier.setVerify(true);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 100)),
+                recipient: address(uint160(i + 200))
+            });
+        }
+
+        vm.prank(user);
+        airdrop.batchClaim(claims);
+
+        assertEq(airdrop.claimCount(), 3);
+        assertEq(airdrop.totalClaimed(), 3 * CLAIM_AMOUNT);
+
+        for (uint256 i = 0; i < 3; i++) {
+            assertTrue(airdrop.isNullifierUsed(bytes32(uint256(i + 100))));
+            assertEq(token.balanceOf(address(uint160(i + 200))), CLAIM_AMOUNT);
+        }
+    }
+
+    function testBatchClaimEmptyBatch() public {
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](0);
+        vm.prank(user);
+        vm.expectRevert(Airdrop.EmptyBatch.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testBatchClaimTooLarge() public {
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](11);
+        for (uint256 i = 0; i < 11; i++) {
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 100)),
+                recipient: address(uint160(i + 200))
+            });
+        }
+
+        verifier.setVerify(true);
+        vm.prank(user);
+        vm.expectRevert(Airdrop.BatchClaimsTooLarge.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testBatchClaimInvalidProof() public {
+        verifier.setVerify(false);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.InvalidProof.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testBatchClaimDuplicateNullifier() public {
+        verifier.setVerify(true);
+
+        airdrop.claim(_mockProof(), bytes32(uint256(100)), user);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.NullifierAlreadyUsed.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testBatchClaimWhenPaused() public {
+        verifier.setVerify(true);
+        vm.prank(owner);
+        airdrop.pause();
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.ContractPaused.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testAcceptOwnershipEventOrder() public {
+        address newOwner = address(0x3);
+
+        vm.prank(owner);
+        airdrop.transferOwnership(newOwner);
+
+        address expectedPreviousOwner = owner;
+
+        vm.prank(newOwner);
+        vm.expectEmit(true, true, false, true);
+        emit OwnershipTransferred(expectedPreviousOwner, newOwner);
+        airdrop.acceptOwnership();
+
+        assertEq(airdrop.owner(), newOwner);
+        assertEq(airdrop.pendingOwner(), address(0));
     }
 }
 
