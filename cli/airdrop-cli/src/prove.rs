@@ -427,6 +427,46 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_claim_input_merkle_proof_length() {
+        let claim = ClaimInput {
+            merkle_root: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                .to_string(),
+            recipient: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            nullifier: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+                .to_string(),
+            merkle_proof: vec!["0x1111111111111111111111111111111111111111111111111111111111111111".to_string()],
+            merkle_indices: vec![],
+            leaf_index: 0,
+            claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
+            public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
+            signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
+        };
+        assert_ne!(claim.merkle_proof.len(), MERKLE_DEPTH);
+    }
+
+    #[test]
+    fn test_validate_claim_input_merkle_indices_length() {
+        let claim = ClaimInput {
+            merkle_root: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                .to_string(),
+            recipient: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            nullifier: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+                .to_string(),
+            merkle_proof: vec![],
+            merkle_indices: vec![true],
+            leaf_index: 0,
+            claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
+            public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
+            signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
+        };
+        assert_ne!(claim.merkle_indices.len(), MERKLE_DEPTH);
+    }
+
+    #[test]
     #[cfg(feature = "mock-proofs")]
     fn test_generate_mock_proof() {
         use std::io::Write;
