@@ -78,6 +78,8 @@ contract Airdrop is ReentrancyGuard {
     error ClaimToContract();
     error InvalidNullifier();
     error EmptyBatch();
+    error BatchTooLarge();
+    error NoPendingOwnershipTransfer();
 
     address public owner;
     address public pendingOwner;
@@ -89,6 +91,7 @@ contract Airdrop is ReentrancyGuard {
     string public constant VERSION = "1.0.0";
 
     uint256 public constant CLAIM_AMOUNT = 100 * 10 ** 18;
+    uint256 public constant MAX_BATCH_SIZE = 50;
     uint256 public totalClaimed;
     uint256 public claimCount;
     // Maximum number of claims allowed to prevent contract draining
@@ -196,7 +199,7 @@ contract Airdrop is ReentrancyGuard {
     /// @notice Accepts pending ownership transfer
     /// @dev Only callable by the pending owner. Reverts if no ownership transfer is pending.
     function acceptOwnership() external {
-        if (pendingOwner == address(0)) revert InvalidRecipient();
+        if (pendingOwner == address(0)) revert NoPendingOwnershipTransfer();
         if (msg.sender != pendingOwner) revert NotOwner();
         emit OwnershipTransferred(owner, pendingOwner);
         owner = pendingOwner;
@@ -404,8 +407,10 @@ contract Airdrop is ReentrancyGuard {
     /// @param operationHashes Array of operation hashes to cancel
     /// @dev Only callable by owner. More gas-efficient than calling cancelOperation multiple times.
     ///      Reverts if any operation cannot be cancelled (already executed, already cancelled, or not scheduled).
+    ///      Maximum batch size is 50 to prevent out-of-gas issues.
     function batchCancelOperations(bytes32[] calldata operationHashes) external onlyOwner {
         if (operationHashes.length == 0) revert EmptyBatch();
+        if (operationHashes.length > MAX_BATCH_SIZE) revert BatchTooLarge();
 
         for (uint256 i = 0; i < operationHashes.length;) {
             bytes32 opHash = operationHashes[i];

@@ -119,6 +119,7 @@ forge create contracts/Airdrop.sol:Airdrop \
   $TOKEN_ADDRESS \
   $VERIFIER_ADDRESS \
   $(cat merkle_root.txt) \
+  $MAX_CLAIMS \
   --private-key $PK
 ```
 
@@ -150,7 +151,10 @@ The generated `claim.json` contains:
   "merkle_proof": ["0x...", "0x...", ...],
   "merkle_indices": [true, false, ...],
   "leaf_index": 12345,
-  "claimer_address": "0x..."
+  "claimer_address": "0x...",
+  "public_key_x": "0x...",
+  "public_key_y": "0x...",
+  "signature": "0x..."
 }
 ```
 

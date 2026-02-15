@@ -58,7 +58,6 @@ struct ClaimOutput {
     merkle_indices: Vec<bool>,
     leaf_index: usize,
     claimer_address: String,
-    private_key_le_bytes: String,
     public_key_x: String,
     public_key_y: String,
     signature: String,
@@ -415,7 +414,6 @@ pub fn run(mut cli: Cli) -> Result<()> {
         merkle_indices,
         leaf_index,
         claimer_address: hex_encode(claimer_address),
-        private_key_le_bytes: hex_encode(private_key_le_bytes),
         public_key_x: hex_encode(public_key_x),
         public_key_y: hex_encode(public_key_y),
         signature: hex_encode(signature_bytes),
@@ -436,7 +434,6 @@ pub fn run(mut cli: Cli) -> Result<()> {
 
     eprintln!();
     eprintln!("SECURITY WARNING: The output file contains sensitive data including:");
-    eprintln!("  - Your private key (in little-endian format, derived from your original key)");
     eprintln!("  - Your signature");
     eprintln!("  - Your nullifier");
     eprintln!("Store this file securely and delete it after use. Anyone with access to");

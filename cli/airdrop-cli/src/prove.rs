@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+#[cfg(all(feature = "mock-proofs", not(debug_assertions)))]
+compile_error!("Mock proofs cannot be enabled in release builds");
+
 use anyhow::{Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -173,8 +176,9 @@ fn generate_noir_proof(
     private_key: &[u8; 32],
     circuit_path: &Path,
 ) -> Result<ProofOutput> {
+    let _ = (claim, private_key, circuit_path);
     anyhow::bail!(
-        "Real proof generation not yet implemented. Please use the 'mock-proofs' feature for development only."
+        "Real proof generation not yet implemented. Please use the 'mock-proofs' feature for development only.\n\nTODO: Implement real Noir proof generation using nargo backend integration."
     );
 }
 
