@@ -47,6 +47,12 @@ pub struct Cli {
     /// Merkle root (hex format)
     #[arg(short, long)]
     pub root: String,
+
+    /// Exclude private key from output JSON for enhanced security
+    /// WARNING: If set, you will need to provide the private key separately
+    /// when running the 'prove' command
+    #[arg(long)]
+    pub exclude_private_key: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -58,7 +64,8 @@ struct ClaimOutput {
     merkle_indices: Vec<bool>,
     leaf_index: usize,
     claimer_address: String,
-    private_key_le_bytes: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    private_key_le_bytes: Option<String>,
     public_key_x: String,
     public_key_y: String,
     signature: String,
@@ -431,7 +438,11 @@ pub fn run(mut cli: Cli) -> Result<()> {
         merkle_indices,
         leaf_index,
         claimer_address: hex_encode(claimer_address),
-        private_key_le_bytes: hex_encode(private_key_le_bytes),
+        private_key_le_bytes: if cli.exclude_private_key {
+            None
+        } else {
+            Some(hex_encode(private_key_le_bytes))
+        },
         public_key_x: hex_encode(public_key_x),
         public_key_y: hex_encode(public_key_y),
         signature: hex_encode(signature_bytes),
@@ -451,9 +462,16 @@ pub fn run(mut cli: Cli) -> Result<()> {
     write_file_atomic(&cli.output, &json_output).context("Failed to write claim file")?;
 
     eprintln!();
-    eprintln!("SECURITY WARNING: The output file contains sensitive data including:");
-    eprintln!("  - Your signature");
-    eprintln!("  - Your nullifier");
+    if cli.exclude_private_key {
+        eprintln!("SECURITY INFO: Private key excluded from output file.");
+        eprintln!("You will need to provide the private key when running 'prove'.");
+    } else {
+        eprintln!("SECURITY WARNING: The output file contains sensitive data including:");
+        eprintln!("  - Your private key (in little-endian format)");
+        eprintln!("  - Your signature");
+        eprintln!("  - Your nullifier");
+        eprintln!("For enhanced security, use --exclude-private-key flag.");
+    }
     eprintln!("Store this file securely and delete it after use. Anyone with access to");
     eprintln!("this file can potentially compromise your account.");
     eprintln!();

@@ -25,7 +25,8 @@ pub struct Cli {
 
     /// Private key (hex format, with or without 0x prefix)
     /// Alternatively, use "-" to read from stdin (more secure)
-    /// Required for real proof generation; optional for mock proofs
+    /// Optional: if not provided, uses private_key_le_bytes from claim JSON
+    /// If provided, validates it matches the key in claim JSON
     #[arg(short = 'k', long)]
     pub private_key: Option<String>,
 
@@ -51,8 +52,7 @@ struct ClaimInput {
     leaf_index: usize,
     #[allow(dead_code)]
     claimer_address: String,
-    #[allow(dead_code)]
-    private_key_le_bytes: String,
+    private_key_le_bytes: Option<String>,
     #[allow(dead_code)]
     public_key_x: String,
     #[allow(dead_code)]
@@ -210,6 +210,54 @@ fn read_private_key(key_opt: Option<&String>) -> Result<[u8; 32]> {
     parse_private_key(&key_str)
 }
 
+fn parse_private_key_le_from_claim(claim: &ClaimInput) -> Result<Option<[u8; 32]>> {
+    let Some(key_str) = &claim.private_key_le_bytes else {
+        return Ok(None);
+    };
+
+    let cleaned = key_str.trim().strip_prefix("0x").unwrap_or(key_str.trim());
+    if cleaned.is_empty() {
+        anyhow::bail!("private_key_le_bytes in claim JSON is empty");
+    }
+    let mut key_bytes =
+        hex::decode(cleaned).context("Invalid private_key_le_bytes format in claim JSON")?;
+    if key_bytes.len() != 32 {
+        anyhow::bail!(
+            "Invalid private_key_le_bytes length: expected 32 bytes, got {}",
+            key_bytes.len()
+        );
+    }
+    let mut private_key = [0u8; 32];
+    private_key.copy_from_slice(&key_bytes);
+    key_bytes.zeroize();
+
+    let mut be_key = private_key;
+    be_key.reverse();
+    if let Err(e) = validate_private_key_range(&be_key) {
+        private_key.zeroize();
+        be_key.zeroize();
+        return Err(e).context(
+            "Invalid private_key_le_bytes in claim JSON: must be within secp256k1 curve order",
+        );
+    }
+
+    Ok(Some(private_key))
+}
+
+fn validate_keys_match(cli_key: &[u8; 32], claim_key_le: &[u8; 32]) -> Result<()> {
+    let mut cli_key_le = *cli_key;
+    cli_key_le.reverse();
+
+    if cli_key_le != *claim_key_le {
+        cli_key_le.zeroize();
+        anyhow::bail!(
+            "Private key provided via CLI does not match private_key_le_bytes in claim JSON"
+        );
+    }
+    cli_key_le.zeroize();
+    Ok(())
+}
+
 pub fn run(cli: &Cli) -> Result<()> {
     #[cfg(feature = "mock-proofs")]
     {
@@ -253,11 +301,37 @@ pub fn run(cli: &Cli) -> Result<()> {
         );
     }
 
-    let mut private_key_bytes = read_private_key(cli.private_key.as_ref())?;
+    let claim_key_le_bytes = parse_private_key_le_from_claim(&claim)?;
+    let mut private_key_le_bytes: [u8; 32] = match (&claim_key_le_bytes, &cli.private_key) {
+        (Some(claim_key), Some(cli_key)) => {
+            println!("Validating private key matches claim JSON...");
+            let mut cli_key_bytes = read_private_key(Some(cli_key))?;
+            validate_keys_match(&cli_key_bytes, claim_key)?;
+            cli_key_bytes.zeroize();
+            *claim_key
+        }
+        (Some(claim_key), None) => {
+            println!("Using private_key_le_bytes from claim JSON...");
+            *claim_key
+        }
+        (None, Some(cli_key)) => {
+            println!("Converting CLI private key to little-endian format...");
+            let mut cli_key_bytes = read_private_key(Some(cli_key))?;
+            cli_key_bytes.reverse();
+            cli_key_bytes
+        }
+        (None, None) => {
+            anyhow::bail!(
+                "Private key required but not available.\n\
+                 The claim JSON does not contain private_key_le_bytes (--exclude-private-key was used).\n\
+                 Please provide the private key via --private-key flag or stdin."
+            );
+        }
+    };
 
     println!("Generating Noir proof...");
-    let proof_output = generate_noir_proof(&claim, &private_key_bytes, &cli.circuit)?;
-    private_key_bytes.zeroize();
+    let proof_output = generate_noir_proof(&claim, &private_key_le_bytes, &cli.circuit)?;
+    private_key_le_bytes.zeroize();
 
     println!("Writing proof to {:?}...", cli.output);
     let json_output =
@@ -444,7 +518,7 @@ mod tests {
             merkle_indices: vec![],
             leaf_index: 0,
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
-            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            private_key_le_bytes: Some("0x0100000000000000000000000000000000000000000000000000000000000000".to_string()),
             public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
             public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
             signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
@@ -464,7 +538,7 @@ mod tests {
             merkle_indices: vec![true],
             leaf_index: 0,
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
-            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            private_key_le_bytes: Some("0x0100000000000000000000000000000000000000000000000000000000000000".to_string()),
             public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
             public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
             signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
@@ -492,7 +566,7 @@ mod tests {
             merkle_indices: vec![],
             leaf_index: 0,
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
-            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            private_key_le_bytes: Some("0x0100000000000000000000000000000000000000000000000000000000000000".to_string()),
             public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
             public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
             signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
@@ -525,7 +599,7 @@ mod tests {
             merkle_indices: vec![],
             leaf_index: 0,
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
-            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            private_key_le_bytes: Some("0x0100000000000000000000000000000000000000000000000000000000000000".to_string()),
             public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
             public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
             signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
@@ -550,7 +624,7 @@ mod tests {
             merkle_indices: vec![],
             leaf_index: 0,
             claimer_address: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
-            private_key_le_bytes: "0x0100000000000000000000000000000000000000000000000000000000000000".to_string(),
+            private_key_le_bytes: Some("0x0100000000000000000000000000000000000000000000000000000000000000".to_string()),
             public_key_x: "0x2222222222222222222222222222222222222222222222222222222222222222".to_string(),
             public_key_y: "0x3333333333333333333333333333333333333333333333333333333333333333".to_string(),
             signature: "0x4444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444".to_string(),
