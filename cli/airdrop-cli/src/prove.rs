@@ -10,18 +10,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use zeroize::Zeroize;
 
-use airdrop_cli::{validate_private_key_range, write_file_atomic, MERKLE_DEPTH};
+use airdrop_cli::{
+    is_path_safe, validate_private_key_range, write_file_atomic, MERKLE_DEPTH,
+    SECP256K1_HALF_ORDER_BE,
+};
 
 const MAX_CLAIM_FILE_SIZE: u64 = 10 * 1024 * 1024;
-const MAX_PROOF_ARRAY_LENGTH: usize = 1000;
 const SIGNATURE_LENGTH: usize = 64;
 const PUBLIC_KEY_COORD_LENGTH: usize = 32;
 const EXPECTED_CIRCUIT_VERSION: &str = "0.1.0";
-
-const SECP256K1_HALF_ORDER_BE: [u8; 32] = [
-    0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0x5D, 0x57, 0x6E, 0x73, 0x57, 0xA4, 0x50, 0x1D, 0xDF, 0xE9, 0x2F, 0x46, 0x68, 0x1B, 0x20, 0xA0,
-];
 
 #[derive(Parser, Debug)]
 #[command(name = "prove")]
@@ -206,11 +203,32 @@ fn verify_circuit_version(circuit_path: &Path) -> Result<()> {
     let nargo_content =
         fs::read_to_string(&nargo_toml_path).context("Failed to read Nargo.toml")?;
 
+    let mut in_package_section = false;
+
     for line in nargo_content.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("version") {
+
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        if trimmed == "[package]" {
+            in_package_section = true;
+            continue;
+        }
+
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_package_section = trimmed == "[package]";
+            continue;
+        }
+
+        if in_package_section && trimmed.starts_with("version") {
             if let Some(eq_pos) = trimmed.find('=') {
-                let version = trimmed[eq_pos + 1..].trim().trim_matches('"');
+                let version = trimmed[eq_pos + 1..]
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'');
+
                 if version != EXPECTED_CIRCUIT_VERSION {
                     anyhow::bail!(
                         "Circuit version mismatch: expected '{}', found '{}'. \
@@ -225,7 +243,7 @@ fn verify_circuit_version(circuit_path: &Path) -> Result<()> {
     }
 
     eprintln!(
-        "WARNING: No version field found in Nargo.toml. Expected version '{}'.",
+        "WARNING: No version field found in Nargo.toml [package] section. Expected version '{}'.",
         EXPECTED_CIRCUIT_VERSION
     );
     Ok(())
@@ -391,6 +409,16 @@ fn validate_keys_match(cli_key: &[u8; 32], claim_key_le: &[u8; 32]) -> Result<()
 }
 
 pub fn run(cli: &Cli) -> Result<()> {
+    if !is_path_safe(&cli.input) {
+        anyhow::bail!("Invalid input path: directory traversal not allowed");
+    }
+    if !is_path_safe(&cli.circuit) {
+        anyhow::bail!("Invalid circuit path: directory traversal not allowed");
+    }
+    if !is_path_safe(&cli.output) {
+        anyhow::bail!("Invalid output path: directory traversal not allowed");
+    }
+
     #[cfg(feature = "mock-proofs")]
     {
         eprintln!();
@@ -869,6 +897,53 @@ mod tests {
         let nargo_path = temp_dir.path().join("Nargo.toml");
         let mut file = std::fs::File::create(&nargo_path).unwrap();
         writeln!(file, "[package]\nname = \"test\"").unwrap();
+        drop(file);
+
+        let result = verify_circuit_version(temp_dir.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_circuit_version_ignores_other_sections() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let nargo_path = temp_dir.path().join("Nargo.toml");
+        let mut file = std::fs::File::create(&nargo_path).unwrap();
+        writeln!(
+            file,
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n[dependencies]\nversion = \"wrong\""
+        )
+        .unwrap();
+        drop(file);
+
+        let result = verify_circuit_version(temp_dir.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_circuit_version_handles_comments() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let nargo_path = temp_dir.path().join("Nargo.toml");
+        let mut file = std::fs::File::create(&nargo_path).unwrap();
+        writeln!(
+            file,
+            "# Comment\n[package]\n# Another comment\nname = \"test\"\nversion = \"0.1.0\""
+        )
+        .unwrap();
+        drop(file);
+
+        let result = verify_circuit_version(temp_dir.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_circuit_version_single_quotes() {
+        use std::io::Write;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let nargo_path = temp_dir.path().join("Nargo.toml");
+        let mut file = std::fs::File::create(&nargo_path).unwrap();
+        writeln!(file, "[package]\nname = \"test\"\nversion = '0.1.0'").unwrap();
         drop(file);
 
         let result = verify_circuit_version(temp_dir.path());

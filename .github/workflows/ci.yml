@@ -137,4 +137,3 @@ jobs:
 
       - name: Run Slither
         run: slither . --filter-paths "lib/|forge-std" --exclude low-level-calls,assembly,external-function,shadowing-state,solc-version,incorrect-equality
-        continue-on-error: true

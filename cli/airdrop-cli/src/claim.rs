@@ -12,8 +12,9 @@ use std::path::{Path, PathBuf};
 use zeroize::Zeroize;
 
 use airdrop_cli::{
-    get_merkle_proof, hex_encode, keccak256_hash, parse_address, validate_merkle_root,
-    validate_private_key_range, write_file_atomic, DOMAIN_SEPARATOR_BYTES, MERKLE_DEPTH,
+    get_merkle_proof, hex_encode, is_path_safe, keccak256_hash, parse_address,
+    validate_merkle_root, validate_private_key_range, write_file_atomic, DOMAIN_SEPARATOR_BYTES,
+    MERKLE_DEPTH,
 };
 
 use k256::ecdsa::signature::Signer;
@@ -324,6 +325,16 @@ fn private_key_to_address(signing_key: &SigningKey) -> ([u8; 20], [u8; 32], [u8;
 }
 
 pub fn run(mut cli: Cli) -> Result<()> {
+    if !is_path_safe(&cli.tree) {
+        anyhow::bail!("Invalid tree path: directory traversal not allowed");
+    }
+    if !is_path_safe(&cli.index_map) {
+        anyhow::bail!("Invalid index map path: directory traversal not allowed");
+    }
+    if !is_path_safe(&cli.output) {
+        anyhow::bail!("Invalid output path: directory traversal not allowed");
+    }
+
     println!("Validating Merkle root...");
     let merkle_root = validate_merkle_root(&cli.root).context("Invalid Merkle root")?;
 
@@ -381,12 +392,9 @@ pub fn run(mut cli: Cli) -> Result<()> {
         anyhow::bail!("Invalid private key: {}", e);
     }
 
-    let signing_key = match SigningKey::from_slice(&private_key_bytes) {
-        Ok(key) => key,
-        Err(_) => {
-            private_key_bytes.zeroize();
-            anyhow::bail!("Invalid private key");
-        }
+    let Ok(signing_key) = SigningKey::from_slice(&private_key_bytes) else {
+        private_key_bytes.zeroize();
+        anyhow::bail!("Invalid private key");
     };
 
     println!("Deriving address from private key...");
@@ -411,9 +419,10 @@ pub fn run(mut cli: Cli) -> Result<()> {
     let signature: k256::ecdsa::Signature = signing_key.sign(&message_hash);
     let signature = signature.normalize_s().unwrap_or(signature);
     drop(signing_key);
-    let sig_bytes = signature.to_bytes();
+    let mut sig_bytes = signature.to_bytes();
     let mut signature_bytes: [u8; 64] = [0u8; 64];
     signature_bytes.copy_from_slice(&sig_bytes);
+    sig_bytes.zeroize();
 
     let tree_size = tree.first().map(|l| l.len()).unwrap_or(0);
     if leaf_index >= tree_size {

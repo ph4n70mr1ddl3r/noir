@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
-use airdrop_cli::{address_to_leaf, hex_encode, keccak256_hash, write_file_atomic, MERKLE_DEPTH};
+use airdrop_cli::{
+    address_to_leaf, hex_encode, is_path_safe, keccak256_hash, write_file_atomic, MERKLE_DEPTH,
+};
 use anyhow::{Context, Result};
 use clap::Parser;
 use sha3::{Digest, Keccak256};
@@ -88,6 +90,26 @@ pub fn build_merkle_tree(leaves: MerkleTreeLevel) -> Result<(MerkleTree, [u8; 32
 }
 
 pub fn run(cli: Cli) -> Result<()> {
+    if !is_path_safe(&cli.input) {
+        anyhow::bail!("Invalid input path: directory traversal not allowed");
+    }
+    if !is_path_safe(&cli.root_output) {
+        anyhow::bail!("Invalid root output path: directory traversal not allowed");
+    }
+    if !is_path_safe(&cli.index_output) {
+        anyhow::bail!("Invalid index output path: directory traversal not allowed");
+    }
+    if let Some(ref tree_output) = cli.tree_output {
+        if !is_path_safe(tree_output) {
+            anyhow::bail!("Invalid tree output path: directory traversal not allowed");
+        }
+    }
+    if let Some(ref checksum_output) = cli.checksum_output {
+        if !is_path_safe(checksum_output) {
+            anyhow::bail!("Invalid checksum output path: directory traversal not allowed");
+        }
+    }
+
     println!("Reading addresses from {:?}...", cli.input);
     let file = File::open(&cli.input).context("Failed to open input file")?;
     let metadata = file.metadata().context("Failed to get file metadata")?;

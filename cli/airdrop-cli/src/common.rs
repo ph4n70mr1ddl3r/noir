@@ -164,6 +164,10 @@ pub const SECP256K1_HALF_ORDER: [u8; 32] = [
     0x5D, 0x57, 0x6E, 0x73, 0x57, 0xA4, 0x50, 0x1D, 0xDF, 0xE9, 0x2F, 0x46, 0x68, 0x1B, 0x20, 0xA0,
 ];
 
+/// Alias for SECP256K1_HALF_ORDER (big-endian format).
+/// Provided for clarity when comparing against big-endian signature components.
+pub const SECP256K1_HALF_ORDER_BE: [u8; 32] = SECP256K1_HALF_ORDER;
+
 /// Domain separator bytes for nullifier computation to prevent cross-context replay.
 /// Must match the value in Noir circuit: [0xa1, 0xb2, 0xc3, 0xd4] placed at bytes 28-31.
 /// This value is also mirrored in the Solidity contract as `bytes4 public constant DOMAIN_SEPARATOR`.
@@ -281,6 +285,41 @@ pub fn get_merkle_proof(
     }
 
     Ok((proof, indices))
+}
+
+/// Validates that a file path is safe to use (no directory traversal).
+///
+/// # Arguments
+/// * `path` - The path to validate
+///
+/// # Returns
+/// `true` if the path is safe, `false` otherwise
+///
+/// # Security
+/// This prevents directory traversal attacks by rejecting:
+/// - Absolute paths (starting with /)
+/// - Paths containing parent directory references (..)
+/// - Paths starting with ~ (home directory expansion)
+#[must_use]
+#[inline]
+pub fn is_path_safe<P: AsRef<Path>>(path: P) -> bool {
+    let path = path.as_ref();
+
+    if path.is_absolute() {
+        return false;
+    }
+
+    let path_str = path.to_string_lossy();
+
+    if path_str.contains("..") {
+        return false;
+    }
+
+    if path_str.starts_with('~') {
+        return false;
+    }
+
+    true
 }
 
 /// Atomically writes content to a file using a temp file and rename.
@@ -604,5 +643,34 @@ mod tests {
         let result_upper = parse_address(upper).unwrap();
 
         assert_eq!(result_lower, result_upper);
+    }
+
+    #[test]
+    fn test_is_path_safe_valid() {
+        assert!(is_path_safe("output.txt"));
+        assert!(is_path_safe("subdir/output.txt"));
+        assert!(is_path_safe("./output.txt"));
+        assert!(is_path_safe("a/b/c/output.txt"));
+    }
+
+    #[test]
+    fn test_is_path_safe_absolute() {
+        assert!(!is_path_safe("/etc/passwd"));
+        assert!(!is_path_safe("/tmp/output.txt"));
+        assert!(!is_path_safe("/root/.ssh/id_rsa"));
+    }
+
+    #[test]
+    fn test_is_path_safe_traversal() {
+        assert!(!is_path_safe("../../../etc/passwd"));
+        assert!(!is_path_safe("subdir/../../etc/passwd"));
+        assert!(!is_path_safe(".."));
+        assert!(!is_path_safe("../output.txt"));
+    }
+
+    #[test]
+    fn test_is_path_safe_home() {
+        assert!(!is_path_safe("~/secrets/key"));
+        assert!(!is_path_safe("~root/.ssh"));
     }
 }
