@@ -91,17 +91,28 @@ contract Airdrop is ReentrancyGuard {
 
     string public constant VERSION = "1.0.0";
 
+    /// @notice Amount of tokens distributed per claim (100 tokens with 18 decimals)
     uint256 public constant CLAIM_AMOUNT = 100 * 10 ** 18;
+
+    /// @notice Maximum number of operations that can be cancelled in a single batch
+    /// @dev Limited to 50 to prevent out-of-gas errors while allowing efficient bulk operations
     uint256 public constant MAX_BATCH_SIZE = 50;
+
+    /// @notice Maximum number of claims that can be processed in a single batch transaction
+    /// @dev Limited to 10 to balance gas efficiency with block gas limits and prevent DoS vectors.
+    ///      Each claim involves a ZK proof verification which is gas-intensive.
     uint256 public constant MAX_BATCH_CLAIMS = 10;
     uint256 public totalClaimed;
+    /// @notice Total number of successful claims made
     uint256 public claimCount;
-    // Maximum number of claims allowed to prevent contract draining
+    /// @notice Maximum number of claims allowed to prevent contract draining
     uint256 public maxClaims;
 
-    // Timelock delay for sensitive owner operations (2 days = 48 hours)
+    /// @notice Timelock delay for sensitive owner operations (2 days = 48 hours)
+    /// @dev Provides time for users to react to malicious proposals
     uint256 public constant TIMELOCK_DELAY = 2 days;
-    // Operations expire after 14 days to prevent indefinite execution
+    /// @notice Operations expire after 14 days to prevent indefinite execution
+    /// @dev Forces re-scheduling of operations that weren't executed in time
     uint256 public constant TIMELOCK_EXPIRATION = 14 days;
     mapping(bytes32 => uint256) public timelockSchedule;
     mapping(bytes32 => bool) public executedOperations;

@@ -183,7 +183,13 @@ fn generate_noir_proof(
 ) -> Result<ProofOutput> {
     let _ = (claim, private_key, circuit_path);
     anyhow::bail!(
-        "Real proof generation not yet implemented. Please use the 'mock-proofs' feature for development only.\n\nTODO: Implement real Noir proof generation using nargo backend integration."
+        "Real proof generation not yet implemented.\n\n\
+         For development and testing, use the 'mock-proofs' feature:\n\
+           cargo run --features mock-proofs -- prove ...\n\n\
+         NOTE: Mock proofs are NOT cryptographically valid and will be rejected\n\
+         by the on-chain verifier. They are only for testing the claim flow.\n\n\
+         TODO: Implement real Noir proof generation by integrating with the\n\
+         nargo backend or Barretenberg proving system."
     );
 }
 

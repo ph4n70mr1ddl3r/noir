@@ -1216,6 +1216,208 @@ contract AirdropTest is Test {
         airdrop.batchClaim(claims);
     }
 
+    function testFuzz_BatchClaimWithValidProofs(uint8 batchSize) public {
+        vm.assume(batchSize > 0);
+        vm.assume(batchSize <= 10);
+
+        verifier.setVerify(true);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](batchSize);
+        for (uint256 i = 0; i < batchSize; i++) {
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 1000)),
+                recipient: address(uint160(i + 2000))
+            });
+        }
+
+        vm.prank(user);
+        airdrop.batchClaim(claims);
+
+        assertEq(airdrop.claimCount(), batchSize);
+        assertEq(airdrop.totalClaimed(), uint256(batchSize) * CLAIM_AMOUNT);
+
+        for (uint256 i = 0; i < batchSize; i++) {
+            assertTrue(airdrop.isNullifierUsed(bytes32(uint256(i + 1000))));
+            assertEq(token.balanceOf(address(uint160(i + 2000))), CLAIM_AMOUNT);
+        }
+    }
+
+    function testFuzz_BatchClaimRejectsZeroRecipient(uint8 batchSize, uint8 zeroIndex) public {
+        vm.assume(batchSize > 0);
+        vm.assume(batchSize <= 10);
+        vm.assume(zeroIndex < batchSize);
+
+        verifier.setVerify(true);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](batchSize);
+        for (uint256 i = 0; i < batchSize; i++) {
+            address recipient = (i == zeroIndex) ? address(0) : address(uint160(i + 2000));
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 1000)),
+                recipient: recipient
+            });
+        }
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.InvalidRecipient.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testFuzz_BatchClaimRejectsZeroNullifier(uint8 batchSize, uint8 zeroIndex) public {
+        vm.assume(batchSize > 0);
+        vm.assume(batchSize <= 10);
+        vm.assume(zeroIndex < batchSize);
+
+        verifier.setVerify(true);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](batchSize);
+        for (uint256 i = 0; i < batchSize; i++) {
+            bytes32 nullifier = (i == zeroIndex) ? bytes32(0) : bytes32(uint256(i + 1000));
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: nullifier,
+                recipient: address(uint160(i + 2000))
+            });
+        }
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.InvalidNullifier.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testReentrancyGuardBatchClaim() public {
+        ReentrancyToken reentrancyToken = new ReentrancyToken();
+        MockVerifier reentrancyVerifier = new MockVerifier();
+        reentrancyVerifier.setVerify(true);
+
+        vm.startPrank(owner);
+        Airdrop reentrancyAirdrop = new Airdrop(
+            address(reentrancyToken), address(reentrancyVerifier), merkleRoot, MAX_CLAIMS
+        );
+        reentrancyToken.mint(address(reentrancyAirdrop), MAX_CLAIMS * CLAIM_AMOUNT);
+        vm.stopPrank();
+
+        AttackerContract attacker = new AttackerContract(payable(address(reentrancyAirdrop)));
+        reentrancyToken.setAttacker(address(attacker), payable(address(reentrancyAirdrop)));
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(999)),
+            recipient: address(attacker)
+        });
+        claims[1] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(1000)),
+            recipient: address(attacker)
+        });
+
+        vm.prank(address(attacker));
+        vm.expectRevert(Airdrop.TransferFailed.selector);
+        reentrancyAirdrop.batchClaim(claims);
+
+        assertFalse(reentrancyAirdrop.isNullifierUsed(bytes32(uint256(999))));
+        assertFalse(reentrancyAirdrop.isNullifierUsed(bytes32(uint256(1000))));
+    }
+
+    function testInvariant_BatchClaimTotalClaimedMatchesClaimCount() public {
+        verifier.setVerify(true);
+
+        assertEq(airdrop.totalClaimed(), 0);
+        assertEq(airdrop.claimCount(), 0);
+
+        uint256 expectedTotalClaims = 0;
+
+        for (uint256 batch = 0; batch < 5; batch++) {
+            uint256 batchSize = 2 + (batch % 3);
+            Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](batchSize);
+            for (uint256 i = 0; i < batchSize; i++) {
+                claims[i] = Airdrop.ClaimParams({
+                    proof: _mockProof(),
+                    nullifier: bytes32(uint256(batch * 100 + i + 50000)),
+                    recipient: address(uint160(batch * 100 + i + 500))
+                });
+            }
+
+            vm.prank(user);
+            airdrop.batchClaim(claims);
+
+            expectedTotalClaims += batchSize;
+
+            assertEq(airdrop.claimCount(), expectedTotalClaims);
+            assertEq(airdrop.totalClaimed(), expectedTotalClaims * CLAIM_AMOUNT);
+        }
+    }
+
+    function testFuzz_BatchClaimInvariantTotalClaimed(uint8 numBatches, uint8 batchSize) public {
+        vm.assume(numBatches > 0);
+        vm.assume(numBatches <= 5);
+        vm.assume(batchSize > 0);
+        vm.assume(batchSize <= 5);
+
+        verifier.setVerify(true);
+
+        uint256 totalExpectedClaims = 0;
+        uint256 nullifierOffset = 70000;
+
+        for (uint256 batch = 0; batch < numBatches; batch++) {
+            uint256 currentBatchSize = uint256(batchSize);
+            if (currentBatchSize > MAX_CLAIMS - totalExpectedClaims) {
+                currentBatchSize = MAX_CLAIMS - totalExpectedClaims;
+            }
+            if (currentBatchSize == 0) break;
+
+            Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](currentBatchSize);
+            for (uint256 i = 0; i < currentBatchSize; i++) {
+                claims[i] = Airdrop.ClaimParams({
+                    proof: _mockProof(),
+                    nullifier: bytes32(uint256(nullifierOffset + batch * 100 + i)),
+                    recipient: address(uint160(batch * 100 + i + 600))
+                });
+            }
+
+            vm.prank(user);
+            airdrop.batchClaim(claims);
+
+            totalExpectedClaims += currentBatchSize;
+        }
+
+        assertEq(airdrop.totalClaimed(), totalExpectedClaims * CLAIM_AMOUNT);
+        assertEq(airdrop.claimCount(), totalExpectedClaims);
+    }
+
+    function testBatchClaimDoesNotAffectOtherState() public {
+        verifier.setVerify(true);
+
+        address originalOwner = airdrop.owner();
+        bytes32 originalRoot = airdrop.merkleRoot();
+        address originalVerifier = address(airdrop.verifier());
+        address originalToken = address(airdrop.token());
+        uint256 originalMaxClaims = airdrop.maxClaims();
+        bool originalPaused = airdrop.paused();
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 80000)),
+                recipient: address(uint160(i + 700))
+            });
+        }
+
+        vm.prank(user);
+        airdrop.batchClaim(claims);
+
+        assertEq(airdrop.owner(), originalOwner);
+        assertEq(airdrop.merkleRoot(), originalRoot);
+        assertEq(address(airdrop.verifier()), originalVerifier);
+        assertEq(address(airdrop.token()), originalToken);
+        assertEq(airdrop.maxClaims(), originalMaxClaims);
+        assertEq(airdrop.paused(), originalPaused);
+    }
+
     function testAcceptOwnershipEventOrder() public {
         address newOwner = address(0x3);
 
