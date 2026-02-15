@@ -177,6 +177,7 @@ pub fn run(cli: Cli) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn main() -> Result<()> {
     run(Cli::parse())
 }

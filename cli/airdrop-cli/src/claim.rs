@@ -419,6 +419,10 @@ pub fn run(mut cli: Cli) -> Result<()> {
     println!("Parsing recipient address...");
     let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;
 
+    if recipient == [0u8; 20] {
+        anyhow::bail!("Recipient address cannot be zero");
+    }
+
     if recipient != claimer_address {
         eprintln!(
             "WARNING: Recipient address ({}) differs from claimer address ({}). Tokens will be sent to the recipient, not to the address derived from your private key.",
@@ -471,6 +475,7 @@ pub fn run(mut cli: Cli) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn main() -> Result<()> {
     run(Cli::parse())
 }

@@ -1,5 +1,9 @@
 use dep::keccak256::keccak256;
 
+// MERKLE_DEPTH of 26 supports up to 67,108,864 (2^26) leaves in the Merkle tree.
+// This is chosen to balance between supporting large airdrops and keeping
+// proof generation/verification efficient. Each additional level adds one
+// hash operation to proof generation.
 global MERKLE_DEPTH: u32 = 26;
 global DOMAIN_SEPARATOR: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 
@@ -120,41 +124,20 @@ fn verify_private_key_ownership(
     assert(is_valid);
 }
 
-global SECP256K1_ORDER_BYTE_15: u8 = 0xFE;
-global SECP256K1_ORDER_BYTE_16: u8 = 0xBA;
-global SECP256K1_ORDER_BYTE_17: u8 = 0xAE;
-global SECP256K1_ORDER_BYTE_18: u8 = 0xDC;
-global SECP256K1_ORDER_BYTE_19: u8 = 0xE6;
-global SECP256K1_ORDER_BYTE_20: u8 = 0xAF;
-global SECP256K1_ORDER_BYTE_21: u8 = 0x48;
-global SECP256K1_ORDER_BYTE_22: u8 = 0xA0;
-global SECP256K1_ORDER_BYTE_23: u8 = 0x3B;
-global SECP256K1_ORDER_BYTE_24: u8 = 0xBF;
-global SECP256K1_ORDER_BYTE_25: u8 = 0xD2;
-global SECP256K1_ORDER_BYTE_26: u8 = 0x5E;
-global SECP256K1_ORDER_BYTE_27: u8 = 0x8C;
-global SECP256K1_ORDER_BYTE_28: u8 = 0xD0;
-global SECP256K1_ORDER_BYTE_29: u8 = 0x36;
-global SECP256K1_ORDER_BYTE_30: u8 = 0x41;
-global SECP256K1_ORDER_BYTE_31: u8 = 0x41;
+global SECP256K1_ORDER_LE: [u8; 32] = [
+    0x41, 0x41, 0x36, 0xD0, 0x8C, 0x5E, 0xD2, 0xBF,
+    0x3B, 0xA0, 0x48, 0xAF, 0xE6, 0xDC, 0xAE, 0xBA,
+    0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+];
 
 fn validate_private_key_range(private_key_le_bytes: [u8; 32]) {
-    let secp_order_le: [u8; 32] = [
-        SECP256K1_ORDER_BYTE_31, SECP256K1_ORDER_BYTE_30, SECP256K1_ORDER_BYTE_29,
-        SECP256K1_ORDER_BYTE_28, SECP256K1_ORDER_BYTE_27, SECP256K1_ORDER_BYTE_26,
-        SECP256K1_ORDER_BYTE_25, SECP256K1_ORDER_BYTE_24, SECP256K1_ORDER_BYTE_23,
-        SECP256K1_ORDER_BYTE_22, SECP256K1_ORDER_BYTE_21, SECP256K1_ORDER_BYTE_20,
-        SECP256K1_ORDER_BYTE_19, SECP256K1_ORDER_BYTE_18, SECP256K1_ORDER_BYTE_17,
-        SECP256K1_ORDER_BYTE_16, SECP256K1_ORDER_BYTE_15, 0xFF, 0xFF, 0xFF,
-        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    ];
-
     let mut key_exceeds: bool = false;
     let mut all_equal_so_far: bool = true;
 
     for i in 0..32 {
         let key_byte = private_key_le_bytes[i];
-        let order_byte = secp_order_le[i];
+        let order_byte = SECP256K1_ORDER_LE[i];
 
         if all_equal_so_far {
             if key_byte > order_byte {

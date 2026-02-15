@@ -1232,6 +1232,40 @@ contract AirdropTest is Test {
         assertEq(airdrop.owner(), newOwner);
         assertEq(airdrop.pendingOwner(), address(0));
     }
+
+    function testBatchClaimAtomicityOnTransferFailure() public {
+        FailingOnCountToken failingToken = new FailingOnCountToken();
+        MockVerifier failingVerifier = new MockVerifier();
+        failingVerifier.setVerify(true);
+
+        vm.startPrank(owner);
+        Airdrop failingAirdrop = new Airdrop(
+            address(failingToken), address(failingVerifier), merkleRoot, MAX_CLAIMS
+        );
+        failingToken.mint(address(failingAirdrop), MAX_CLAIMS * CLAIM_AMOUNT);
+        vm.stopPrank();
+
+        failingToken.setFailAfterCount(2);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 100)),
+                recipient: address(uint160(i + 200))
+            });
+        }
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.TransferFailed.selector);
+        failingAirdrop.batchClaim(claims);
+
+        for (uint256 i = 0; i < 3; i++) {
+            assertFalse(failingAirdrop.isNullifierUsed(bytes32(uint256(i + 100))));
+        }
+        assertEq(failingAirdrop.claimCount(), 0);
+        assertEq(failingAirdrop.totalClaimed(), 0);
+    }
 }
 
 contract ReentrancyToken is IERC20 {
@@ -1283,6 +1317,36 @@ contract FailingToken is IERC20 {
 
     function transfer(address, uint256) external pure returns (bool) {
         return false;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+}
+
+contract FailingOnCountToken is IERC20 {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    uint256 public transferCount;
+    uint256 public failAfterCount;
+
+    function setFailAfterCount(uint256 _count) external {
+        failAfterCount = _count;
+    }
+
+    function transfer(address recipient, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[recipient] += amount;
+        transferCount++;
+        if (transferCount > failAfterCount) {
+            return false;
+        }
+        return true;
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {

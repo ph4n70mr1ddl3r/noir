@@ -51,6 +51,7 @@ struct ClaimInput {
     leaf_index: usize,
     #[allow(dead_code)]
     claimer_address: String,
+    #[allow(dead_code)]
     private_key_le_bytes: String,
     #[allow(dead_code)]
     public_key_x: String,
@@ -112,6 +113,7 @@ fn parse_private_key(key_str: &str) -> Result<[u8; 32]> {
     }
     let mut key_bytes = hex::decode(cleaned).context("Invalid private key format")?;
     if key_bytes.len() != 32 {
+        key_bytes.zeroize();
         anyhow::bail!(
             "Invalid private key length: expected 32 bytes, got {}",
             key_bytes.len()
@@ -121,8 +123,10 @@ fn parse_private_key(key_str: &str) -> Result<[u8; 32]> {
     private_key.copy_from_slice(&key_bytes);
     key_bytes.zeroize();
 
-    validate_private_key_range(&private_key)
-        .context("Invalid private key: must be within secp256k1 curve order")?;
+    if let Err(e) = validate_private_key_range(&private_key) {
+        private_key.zeroize();
+        return Err(e).context("Invalid private key: must be within secp256k1 curve order");
+    }
 
     Ok(private_key)
 }
@@ -245,6 +249,7 @@ pub fn run(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn main() -> Result<()> {
     run(&Cli::parse())
 }
