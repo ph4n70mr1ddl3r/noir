@@ -5,13 +5,20 @@ use dep::keccak256::keccak256;
 // proof generation/verification efficient. Each additional level adds one
 // hash operation to proof generation.
 global MERKLE_DEPTH: u32 = 26;
+
+// Domain separator for nullifier computation to prevent cross-context replay attacks.
+// Must match the value in Solidity contract (Airdrop.sol) and CLI (common.rs).
 global DOMAIN_SEPARATOR: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 
+// Merkle proof structure containing the sibling hashes and direction indicators.
 struct MerkleProof {
     path: [[u8; 32]; MERKLE_DEPTH],
     indices: [bool; MERKLE_DEPTH],
 }
 
+// Computes the Merkle root from a leaf and a proof.
+// Follows standard Merkle tree construction: H(left || right) where left/right
+// are determined by the indices array.
 fn compute_merkle_root(leaf: [u8; 32], proof: MerkleProof) -> [u8; 32] {
     let mut current = leaf;
 
@@ -38,6 +45,8 @@ fn compute_merkle_root(leaf: [u8; 32], proof: MerkleProof) -> [u8; 32] {
     current
 }
 
+// Derives an Ethereum address from an uncompressed secp256k1 public key.
+// Uses standard Ethereum derivation: last 20 bytes of Keccak256(pubkey).
 fn derive_address_from_pubkey(pub_key_x: [u8; 32], pub_key_y: [u8; 32]) -> Field {
     let mut pub_key_uncompressed: [u8; 65] = [0; 65];
     pub_key_uncompressed[0] = 0x04;
@@ -56,6 +65,9 @@ fn derive_address_from_pubkey(pub_key_x: [u8; 32], pub_key_y: [u8; 32]) -> Field
     address
 }
 
+// Computes a nullifier from a private key for double-claim prevention.
+// Uses Keccak256(private_key_le || domain_separator) where private_key is
+// converted to little-endian bytes for consistent encoding.
 fn compute_nullifier(private_key_le_bytes: [u8; 32]) -> Field {
     let mut domain_padded: [u8; 32] = [0; 32];
     domain_padded[28] = DOMAIN_SEPARATOR[0];
@@ -78,6 +90,8 @@ fn compute_nullifier(private_key_le_bytes: [u8; 32]) -> Field {
     result
 }
 
+// Converts a 20-byte Ethereum address to a 32-byte Merkle leaf.
+// Left-pads with zeros (12 bytes of zeros + 20-byte address).
 fn address_to_leaf(address: [u8; 20]) -> [u8; 32] {
     let mut leaf: [u8; 32] = [0; 32];
     for i in 0..20 {
@@ -86,6 +100,8 @@ fn address_to_leaf(address: [u8; 20]) -> [u8; 32] {
     leaf
 }
 
+// Converts a Field value to a 20-byte address.
+// Uses big-endian encoding consistent with Ethereum address representation.
 fn field_to_address_bytes(address: Field) -> [u8; 20] {
     let mut bytes: [u8; 20] = [0; 20];
     let mut addr = address;
@@ -98,6 +114,8 @@ fn field_to_address_bytes(address: Field) -> [u8; 20] {
     bytes
 }
 
+// Verifies that the signer of the message owns the private key for the claimed address.
+// This proves ownership without revealing the private key on-chain.
 fn verify_private_key_ownership(
     public_key_x: [u8; 32],
     public_key_y: [u8; 32],
@@ -124,6 +142,8 @@ fn verify_private_key_ownership(
     assert(is_valid);
 }
 
+// secp256k1 curve order in little-endian format.
+// Used to validate that private keys are within valid range (1 <= key < n).
 global SECP256K1_ORDER_LE: [u8; 32] = [
     0x41, 0x41, 0x36, 0xD0, 0x8C, 0x5E, 0xD2, 0xBF,
     0x3B, 0xA0, 0x48, 0xAF, 0xE6, 0xDC, 0xAE, 0xBA,
@@ -131,6 +151,8 @@ global SECP256K1_ORDER_LE: [u8; 32] = [
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 ];
 
+// Validates that a private key is within the valid range for secp256k1.
+// The key must be non-zero and less than the curve order n.
 fn validate_private_key_range(private_key_le_bytes: [u8; 32]) {
     let mut key_exceeds: bool = false;
     let mut all_equal_so_far: bool = true;
@@ -156,6 +178,12 @@ fn validate_private_key_range(private_key_le_bytes: [u8; 32]) {
     assert(!key_exceeds);
 }
 
+// Main circuit entry point.
+// Proves:
+// 1. The claimer owns a private key for the claimed address
+// 2. The claimed address is in the Merkle tree
+// 3. The nullifier is correctly derived from the private key
+// 4. The private key is within valid secp256k1 range
 fn main(
     merkle_root: Field,
     recipient: Field,
