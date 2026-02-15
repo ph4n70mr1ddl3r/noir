@@ -11,8 +11,11 @@ contract MockVerifier is IUltraVerifier {
         shouldVerify = _shouldVerify;
     }
 
-    function verify(uint256[] calldata, uint256[] calldata) external view returns (bool) {
-        return shouldVerify;
+    function verify(uint256[] calldata proof, uint256[] calldata publicInputs) external view returns (bool) {
+        if (!shouldVerify) return false;
+        if (proof.length == 0) return false;
+        if (publicInputs.length != 3) return false;
+        return true;
     }
 }
 

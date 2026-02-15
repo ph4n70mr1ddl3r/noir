@@ -183,13 +183,17 @@ fn generate_noir_proof(
 ) -> Result<ProofOutput> {
     let _ = (claim, private_key, circuit_path);
     anyhow::bail!(
-        "Real proof generation not yet implemented.\n\n\
-         For development and testing, use the 'mock-proofs' feature:\n\
-           cargo run --features mock-proofs -- prove ...\n\n\
-         NOTE: Mock proofs are NOT cryptographically valid and will be rejected\n\
-         by the on-chain verifier. They are only for testing the claim flow.\n\n\
-         TODO: Implement real Noir proof generation by integrating with the\n\
-         nargo backend or Barretenberg proving system."
+        "Real proof generation not implemented.\n\
+         \n\
+         For development/testing, use the 'mock-proofs' feature:\n\
+           cargo run --features mock-proofs -- prove ...\n\
+         \n\
+         WARNING: Mock proofs are NOT cryptographically valid and will be\n\
+         rejected by the on-chain verifier.\n\
+         \n\
+         To generate real proofs, you must integrate with the Noir proving\n\
+         system (nargo backend or Barretenberg). See the Noir documentation:\n\
+         https://noir-lang.org/docs/"
     );
 }
 
@@ -344,7 +348,6 @@ pub fn run(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-#[allow(dead_code)]
 fn main() -> Result<()> {
     run(&Cli::parse())
 }

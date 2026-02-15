@@ -11,7 +11,7 @@
 We take security seriously. If you discover a security vulnerability, please follow these steps:
 
 1. **Do NOT open a public issue** - Security vulnerabilities should be reported privately
-2. Email security concerns to security@example.com or open a GitHub Security Advisory
+2. Report security concerns via [GitHub Security Advisories](https://github.com/noir-lang/noir/security/advisories/new)
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce

@@ -158,6 +158,7 @@ pub const SECP256K1_ORDER: [u8; 32] = [
 
 /// Domain separator bytes for nullifier computation to prevent cross-context replay.
 /// Must match the value in Noir circuit: [0xa1, 0xb2, 0xc3, 0xd4] placed at bytes 28-31.
+/// This value is also mirrored in the Solidity contract as `bytes4 public constant DOMAIN_SEPARATOR`.
 pub const DOMAIN_SEPARATOR_BYTES: [u8; 4] = [0xa1, 0xb2, 0xc3, 0xd4];
 
 /// Validates that a private key is within the valid range for secp256k1.
