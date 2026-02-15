@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use zeroize::Zeroize;
 
-use airdrop_cli::{validate_private_key_range, write_file_atomic};
+use airdrop_cli::{validate_private_key_range, write_file_atomic, MERKLE_DEPTH};
 
 const MAX_CLAIM_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
@@ -231,6 +231,21 @@ pub fn run(cli: &Cli) -> Result<()> {
     validate_hex_32_bytes(&claim.merkle_root, "merkle_root")?;
     validate_hex_32_bytes(&claim.nullifier, "nullifier")?;
     validate_recipient_address(&claim.recipient)?;
+
+    if claim.merkle_proof.len() != MERKLE_DEPTH {
+        anyhow::bail!(
+            "Invalid merkle_proof length: expected {}, got {}",
+            MERKLE_DEPTH,
+            claim.merkle_proof.len()
+        );
+    }
+    if claim.merkle_indices.len() != MERKLE_DEPTH {
+        anyhow::bail!(
+            "Invalid merkle_indices length: expected {}, got {}",
+            MERKLE_DEPTH,
+            claim.merkle_indices.len()
+        );
+    }
 
     let mut private_key_bytes = read_private_key(cli.private_key.as_ref())?;
 

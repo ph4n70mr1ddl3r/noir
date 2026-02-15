@@ -404,10 +404,6 @@ pub fn run(mut cli: Cli) -> Result<()> {
     let (merkle_proof, merkle_indices) =
         get_merkle_proof(&tree, leaf_index).context("Failed to generate Merkle proof")?;
 
-    if merkle_proof.is_empty() && !tree.is_empty() && tree[0].len() > 1 {
-        anyhow::bail!("Invalid Merkle proof: proof is empty but tree has multiple leaves");
-    }
-
     if merkle_proof.len() != MERKLE_DEPTH {
         anyhow::bail!(
             "Internal error: proof length ({}) does not match MERKLE_DEPTH ({})",
@@ -418,10 +414,6 @@ pub fn run(mut cli: Cli) -> Result<()> {
 
     println!("Parsing recipient address...");
     let recipient = parse_address(&cli.recipient).context("Invalid recipient address")?;
-
-    if recipient == [0u8; 20] {
-        anyhow::bail!("Recipient address cannot be zero");
-    }
 
     if recipient != claimer_address {
         eprintln!(
