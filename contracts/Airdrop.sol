@@ -404,9 +404,13 @@ contract Airdrop is ReentrancyGuard {
 
         uint256 currentClaimCount = claimCount;
         uint256 currentMaxClaims = maxClaims;
+        // Safety: claims.length is bounded by MAX_BATCH_CLAIMS (10), so overflow is impossible
+        // since currentClaimCount <= maxClaims and maxClaims is realistically bounded by
+        // the total token supply which is far less than type(uint256).max - MAX_BATCH_CLAIMS
         if (currentClaimCount + claims.length > currentMaxClaims) revert MaxClaimsExceeded();
 
         IERC20 token_ = token;
+        IUltraVerifier verifier_ = verifier;
         if (token_.balanceOf(address(this)) < CLAIM_AMOUNT * claims.length) {
             revert InsufficientBalance();
         }
@@ -442,7 +446,7 @@ contract Airdrop is ReentrancyGuard {
             publicInputs[1] = uint256(uint160(claimParams.recipient));
             publicInputs[2] = uint256(claimParams.nullifier);
 
-            bool isValid = verifier.verify(claimParams.proof, publicInputs);
+            bool isValid = verifier_.verify(claimParams.proof, publicInputs);
             if (!isValid) revert InvalidProof();
 
             usedNullifiers[claimParams.nullifier] = true;
@@ -661,7 +665,13 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Pre-validates claim parameters without executing the claim
-    /// @dev Useful for frontends to check if a claim would succeed before submitting
+    /// @dev Useful for frontends to check if a claim would succeed before submitting.
+    ///      NOTE: This function does NOT validate the ZK proof - only checks:
+    ///      - Contract is not paused
+    ///      - Nullifier is valid and not already used
+    ///      - Recipient is valid (not zero address, not contract address)
+    ///      - Max claims not exceeded
+    ///      - Sufficient token balance exists
     /// @param nullifier The nullifier to validate
     /// @param recipient The recipient address to validate
     /// @return isValid True if the claim parameters are valid
@@ -682,7 +692,14 @@ contract Airdrop is ReentrancyGuard {
     }
 
     /// @notice Pre-validates batch claim parameters without executing
-    /// @dev Useful for frontends to check if a batch claim would succeed
+    /// @dev Useful for frontends to check if a batch claim would succeed.
+    ///      NOTE: This function does NOT validate ZK proofs - only checks:
+    ///      - Batch size is within limits (1-10 claims)
+    ///      - Contract is not paused
+    ///      - Max claims would not be exceeded
+    ///      - Sufficient token balance exists
+    ///      - All nullifiers are valid and unique (including within batch)
+    ///      - All recipients are valid
     /// @param claims Array of claim parameters to validate
     /// @return isValid True if all claim parameters are valid
     /// @return reason Error reason if invalid (empty string if valid)

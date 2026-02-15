@@ -1644,7 +1644,7 @@ contract AirdropTest is Test {
         assertEq(airdrop.totalClaimed(), claimsMade * CLAIM_AMOUNT);
     }
 
-    function testGetOperationStatusNotScheduled() public {
+    function testGetOperationStatusNotScheduled() public view {
         bytes32 fakeHash = keccak256("fake");
         assertEq(uint8(airdrop.getOperationStatus(fakeHash)), uint8(Airdrop.OperationStatus.NotScheduled));
     }
@@ -1827,6 +1827,92 @@ contract AirdropTest is Test {
         emit BatchOperationsCancelled(hashes, 2);
         airdrop.batchCancelOperations(hashes);
         vm.stopPrank();
+    }
+
+    function testFuzz_BatchClaimMaxSize(uint8 batchSize) public {
+        vm.assume(batchSize > 0);
+        vm.assume(batchSize <= 10);
+        verifier.setVerify(true);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](batchSize);
+        for (uint256 i = 0; i < batchSize; i++) {
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 90000)),
+                recipient: address(uint160(i + 1000))
+            });
+        }
+
+        vm.prank(user);
+        airdrop.batchClaim(claims);
+
+        assertEq(airdrop.claimCount(), batchSize);
+    }
+
+    function testValidateBatchClaimParamsInsufficientBalance() public {
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+        claims[1] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(101)),
+            recipient: address(0xABC)
+        });
+
+        vm.startPrank(owner);
+        MockERC20 smallToken = new MockERC20();
+        smallToken.mint(owner, CLAIM_AMOUNT);
+        MockVerifier smallVerifier = new MockVerifier();
+        Airdrop smallAirdrop = new Airdrop(
+            address(smallToken), address(smallVerifier), merkleRoot, 10
+        );
+        smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT);
+        vm.stopPrank();
+
+        (bool isValid, string memory reason) = smallAirdrop.validateBatchClaimParams(claims);
+        assertFalse(isValid);
+        assertEq(reason, "Insufficient balance");
+    }
+
+    function testFuzz_TimelockOperationExpiration(uint256 timeSkip) public {
+        bytes32 newRoot = bytes32(uint256(789));
+        vm.assume(timeSkip > 16 days);
+        vm.assume(timeSkip < type(uint256).max - block.timestamp);
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        vm.warp(block.timestamp + timeSkip);
+        vm.expectRevert(Airdrop.OperationExpired.selector);
+        airdrop.updateRoot(newRoot);
+        vm.stopPrank();
+    }
+
+    function testInvariant_ClaimCountConsistencyAfterBatch() public {
+        verifier.setVerify(true);
+
+        uint256 expectedCount = 0;
+        for (uint256 batch = 0; batch < 3; batch++) {
+            uint256 batchSize = 3;
+            Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](batchSize);
+            for (uint256 i = 0; i < batchSize; i++) {
+                claims[i] = Airdrop.ClaimParams({
+                    proof: _mockProof(),
+                    nullifier: bytes32(uint256(batch * 10 + i + 100000)),
+                    recipient: address(uint160(batch * 10 + i + 1000))
+                });
+            }
+
+            vm.prank(user);
+            airdrop.batchClaim(claims);
+
+            expectedCount += batchSize;
+            assertEq(airdrop.claimCount(), expectedCount);
+            assertEq(airdrop.totalClaimed(), expectedCount * CLAIM_AMOUNT);
+        }
     }
 }
 
