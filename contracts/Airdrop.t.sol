@@ -1643,6 +1643,191 @@ contract AirdropTest is Test {
         assertEq(airdrop.claimCount(), claimsMade);
         assertEq(airdrop.totalClaimed(), claimsMade * CLAIM_AMOUNT);
     }
+
+    function testGetOperationStatusNotScheduled() public {
+        bytes32 fakeHash = keccak256("fake");
+        assertEq(uint8(airdrop.getOperationStatus(fakeHash)), uint8(Airdrop.OperationStatus.NotScheduled));
+    }
+
+    function testGetOperationStatusScheduled() public {
+        bytes32 newRoot = bytes32(uint256(789));
+        vm.prank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        assertEq(uint8(airdrop.getOperationStatus(operationHash)), uint8(Airdrop.OperationStatus.Scheduled));
+    }
+
+    function testGetOperationStatusExecuted() public {
+        bytes32 newRoot = bytes32(uint256(789));
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.updateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        assertEq(uint8(airdrop.getOperationStatus(operationHash)), uint8(Airdrop.OperationStatus.Executed));
+        vm.stopPrank();
+    }
+
+    function testGetOperationStatusCancelled() public {
+        bytes32 newRoot = bytes32(uint256(789));
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        airdrop.cancelOperation(operationHash);
+        assertEq(uint8(airdrop.getOperationStatus(operationHash)), uint8(Airdrop.OperationStatus.Cancelled));
+        vm.stopPrank();
+    }
+
+    function testGetOperationStatusExpired() public {
+        bytes32 newRoot = bytes32(uint256(789));
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        vm.warp(block.timestamp + 14 days + 2 days + 1);
+        assertEq(uint8(airdrop.getOperationStatus(operationHash)), uint8(Airdrop.OperationStatus.Expired));
+        vm.stopPrank();
+    }
+
+    function testGetOperationSchedule() public {
+        bytes32 newRoot = bytes32(uint256(789));
+        vm.prank(owner);
+        airdrop.scheduleUpdateRoot(newRoot);
+
+        bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
+        uint256 executeAfter = airdrop.getOperationSchedule(operationHash);
+        assertEq(executeAfter, block.timestamp + 2 days);
+    }
+
+    function testValidateClaimParamsValid() public view {
+        bytes32 nullifier = bytes32(uint256(456));
+        address recipient = user;
+        (bool isValid, string memory reason) = airdrop.validateClaimParams(nullifier, recipient);
+        assertTrue(isValid);
+        assertEq(reason, "");
+    }
+
+    function testValidateClaimParamsPaused() public {
+        vm.prank(owner);
+        airdrop.pause();
+
+        (bool isValid, string memory reason) = airdrop.validateClaimParams(bytes32(uint256(456)), user);
+        assertFalse(isValid);
+        assertEq(reason, "Contract is paused");
+    }
+
+    function testValidateClaimParamsInvalidNullifier() public view {
+        (bool isValid, string memory reason) = airdrop.validateClaimParams(bytes32(0), user);
+        assertFalse(isValid);
+        assertEq(reason, "Invalid nullifier");
+    }
+
+    function testValidateClaimParamsNullifierUsed() public {
+        verifier.setVerify(true);
+        bytes32 nullifier = bytes32(uint256(456));
+        vm.prank(user);
+        airdrop.claim(_mockProof(), nullifier, user);
+
+        (bool isValid, string memory reason) = airdrop.validateClaimParams(nullifier, user);
+        assertFalse(isValid);
+        assertEq(reason, "Nullifier already used");
+    }
+
+    function testValidateClaimParamsInvalidRecipient() public view {
+        (bool isValid, string memory reason) = airdrop.validateClaimParams(bytes32(uint256(456)), address(0));
+        assertFalse(isValid);
+        assertEq(reason, "Invalid recipient");
+    }
+
+    function testValidateClaimParamsContractRecipient() public view {
+        (bool isValid, string memory reason) = airdrop.validateClaimParams(bytes32(uint256(456)), address(airdrop));
+        assertFalse(isValid);
+        assertEq(reason, "Cannot claim to contract");
+    }
+
+    function testValidateBatchClaimParamsValid() public view {
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+        claims[1] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(101)),
+            recipient: address(0xABC)
+        });
+
+        (bool isValid, string memory reason) = airdrop.validateBatchClaimParams(claims);
+        assertTrue(isValid);
+        assertEq(reason, "");
+    }
+
+    function testValidateBatchClaimParamsEmpty() public view {
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](0);
+        (bool isValid, string memory reason) = airdrop.validateBatchClaimParams(claims);
+        assertFalse(isValid);
+        assertEq(reason, "Empty batch");
+    }
+
+    function testValidateBatchClaimParamsTooLarge() public view {
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](11);
+        for (uint256 i = 0; i < 11; i++) {
+            claims[i] = Airdrop.ClaimParams({
+                proof: _mockProof(),
+                nullifier: bytes32(uint256(i + 100)),
+                recipient: user
+            });
+        }
+
+        (bool isValid, string memory reason) = airdrop.validateBatchClaimParams(claims);
+        assertFalse(isValid);
+        assertEq(reason, "Batch too large");
+    }
+
+    function testValidateBatchClaimParamsDuplicateNullifier() public view {
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: user
+        });
+        claims[1] = Airdrop.ClaimParams({
+            proof: _mockProof(),
+            nullifier: bytes32(uint256(100)),
+            recipient: address(0xABC)
+        });
+
+        (bool isValid, string memory reason) = airdrop.validateBatchClaimParams(claims);
+        assertFalse(isValid);
+        assertEq(reason, "Duplicate nullifier in batch");
+    }
+
+    event BatchOperationsCancelled(bytes32[] indexed operationHashes, uint256 count);
+
+    function testBatchOperationsCancelledEvent() public {
+        bytes32 root1 = bytes32(uint256(789));
+        bytes32 root2 = bytes32(uint256(790));
+
+        vm.startPrank(owner);
+        airdrop.scheduleUpdateRoot(root1);
+        airdrop.scheduleUpdateRoot(root2);
+
+        bytes32 hash1 = keccak256(abi.encode("updateRoot", root1));
+        bytes32 hash2 = keccak256(abi.encode("updateRoot", root2));
+
+        bytes32[] memory hashes = new bytes32[](2);
+        hashes[0] = hash1;
+        hashes[1] = hash2;
+
+        vm.expectEmit(false, false, false, true);
+        emit BatchOperationsCancelled(hashes, 2);
+        airdrop.batchCancelOperations(hashes);
+        vm.stopPrank();
+    }
 }
 
 contract ReentrancyToken is IERC20 {

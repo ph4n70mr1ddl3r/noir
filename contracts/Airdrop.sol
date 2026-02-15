@@ -24,11 +24,15 @@ contract ReentrancyGuard {
         _nonReentrantAfter();
     }
 
+    /// @notice Sets the reentrancy guard before function execution
+    /// @dev Reverts if contract is already locked (reentrant call detected)
     function _nonReentrantBefore() internal {
         if (locked) revert ReentrancyGuardReentrantCall();
         locked = true;
     }
 
+    /// @notice Clears the reentrancy guard after function execution
+    /// @dev Must be called after _nonReentrantBefore to release the lock
     function _nonReentrantAfter() internal {
         locked = false;
     }
@@ -146,6 +150,15 @@ contract Airdrop is ReentrancyGuard {
     event WithdrawalScheduled(uint256 amount, bytes32 indexed operationHash, uint256 executeAfter);
     event RenounceOwnershipScheduled(bytes32 indexed operationHash, uint256 executeAfter);
     event BatchClaimed(address indexed recipient, uint256 indexed claimCount, uint256 totalAmount);
+    event BatchOperationsCancelled(bytes32[] indexed operationHashes, uint256 count);
+
+    enum OperationStatus {
+        NotScheduled,
+        Scheduled,
+        Executed,
+        Cancelled,
+        Expired
+    }
 
     struct ClaimInfo {
         address token;
@@ -168,10 +181,14 @@ contract Airdrop is ReentrancyGuard {
         _;
     }
 
+    /// @notice Internal function to check if contract is not paused
+    /// @dev Reverts with ContractPaused if paused
     function _checkNotPaused() internal view {
         if (paused) revert ContractPaused();
     }
 
+    /// @notice Internal function to check if contract is paused
+    /// @dev Reverts with ContractNotPaused if not paused
     function _checkPaused() internal view {
         if (!paused) revert ContractNotPaused();
     }
@@ -201,6 +218,8 @@ contract Airdrop is ReentrancyGuard {
         _;
     }
 
+    /// @notice Internal function to verify caller is owner
+    /// @dev Reverts with NotOwner if caller is not the owner
     function _onlyOwner() internal view {
         if (msg.sender != owner) revert NotOwner();
     }
@@ -564,6 +583,8 @@ contract Airdrop is ReentrancyGuard {
                 ++i;
             }
         }
+
+        emit BatchOperationsCancelled(operationHashes, operationHashes.length);
     }
 
     /// @notice Executes a timelocked operation after delay has passed
@@ -610,6 +631,101 @@ contract Airdrop is ReentrancyGuard {
         info.maxClaims = maxClaims;
         info.remainingClaims = maxClaims > claimCount ? maxClaims - claimCount : 0;
         info.isPaused = paused;
+    }
+
+    /// @notice Returns the status of a timelocked operation
+    /// @param operationHash The hash of the operation to check
+    /// @return status The current status of the operation
+    function getOperationStatus(bytes32 operationHash) external view returns (OperationStatus status) {
+        if (executedOperations[operationHash]) {
+            return OperationStatus.Executed;
+        }
+        if (cancelledOperations[operationHash]) {
+            return OperationStatus.Cancelled;
+        }
+        uint256 executeAfter = timelockSchedule[operationHash];
+        if (executeAfter == 0) {
+            return OperationStatus.NotScheduled;
+        }
+        if (block.timestamp > executeAfter + TIMELOCK_EXPIRATION) {
+            return OperationStatus.Expired;
+        }
+        return OperationStatus.Scheduled;
+    }
+
+    /// @notice Returns the scheduled execution time for an operation
+    /// @param operationHash The hash of the operation to check
+    /// @return executeAfter The timestamp after which the operation can be executed (0 if not scheduled)
+    function getOperationSchedule(bytes32 operationHash) external view returns (uint256 executeAfter) {
+        return timelockSchedule[operationHash];
+    }
+
+    /// @notice Pre-validates claim parameters without executing the claim
+    /// @dev Useful for frontends to check if a claim would succeed before submitting
+    /// @param nullifier The nullifier to validate
+    /// @param recipient The recipient address to validate
+    /// @return isValid True if the claim parameters are valid
+    /// @return reason Error reason if invalid (empty string if valid)
+    function validateClaimParams(bytes32 nullifier, address recipient)
+        external
+        view
+        returns (bool isValid, string memory reason)
+    {
+        if (paused) return (false, "Contract is paused");
+        if (nullifier == bytes32(0)) return (false, "Invalid nullifier");
+        if (usedNullifiers[nullifier]) return (false, "Nullifier already used");
+        if (recipient == address(0)) return (false, "Invalid recipient");
+        if (recipient == address(this)) return (false, "Cannot claim to contract");
+        if (claimCount >= maxClaims) return (false, "Max claims exceeded");
+        if (token.balanceOf(address(this)) < CLAIM_AMOUNT) return (false, "Insufficient balance");
+        return (true, "");
+    }
+
+    /// @notice Pre-validates batch claim parameters without executing
+    /// @dev Useful for frontends to check if a batch claim would succeed
+    /// @param claims Array of claim parameters to validate
+    /// @return isValid True if all claim parameters are valid
+    /// @return reason Error reason if invalid (empty string if valid)
+    function validateBatchClaimParams(ClaimParams[] calldata claims)
+        external
+        view
+        returns (bool isValid, string memory reason)
+    {
+        if (claims.length == 0) return (false, "Empty batch");
+        if (claims.length > MAX_BATCH_CLAIMS) return (false, "Batch too large");
+        if (paused) return (false, "Contract is paused");
+        if (claimCount + claims.length > maxClaims) return (false, "Max claims exceeded");
+        if (token.balanceOf(address(this)) < CLAIM_AMOUNT * claims.length) {
+            return (false, "Insufficient balance");
+        }
+
+        for (uint256 i = 0; i < claims.length;) {
+            if (claims[i].nullifier == bytes32(0)) {
+                return (false, "Invalid nullifier in batch");
+            }
+            if (usedNullifiers[claims[i].nullifier]) {
+                return (false, "Nullifier already used in batch");
+            }
+            if (claims[i].recipient == address(0)) {
+                return (false, "Invalid recipient in batch");
+            }
+            if (claims[i].recipient == address(this)) {
+                return (false, "Cannot claim to contract in batch");
+            }
+
+            for (uint256 j = 0; j < i;) {
+                if (claims[j].nullifier == claims[i].nullifier) {
+                    return (false, "Duplicate nullifier in batch");
+                }
+                unchecked {
+                    ++j;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+        return (true, "");
     }
 
     receive() external payable {
