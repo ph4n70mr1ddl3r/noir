@@ -151,15 +151,16 @@ global SECP256K1_ORDER_LE: [u8; 32] = [
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 ];
 
-// Half of secp256k1 curve order in little-endian format (n/2).
+// Half of secp256k1 curve order in big-endian format (n/2).
 // Used to prevent ECDSA signature malleability by enforcing low-s values.
 // n = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 // n/2 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
-global SECP256K1_HALF_ORDER_LE: [u8; 32] = [
-    0xA0, 0x20, 0x1B, 0x68, 0x46, 0xF4, 0x92, 0xFE,
-    0xDD, 0x01, 0x45, 0x7A, 0x73, 0x6E, 0x57, 0x5D,
+// Note: This is big-endian because ECDSA signatures use big-endian encoding.
+global SECP256K1_HALF_ORDER_BE: [u8; 32] = [
+    0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F,
+    0x5D, 0x57, 0x6E, 0x73, 0x57, 0xA4, 0x50, 0x1D,
+    0xDF, 0xE9, 0x2F, 0x46, 0x68, 0x1B, 0x20, 0xA0,
 ];
 
 // Validates that a private key is within the valid range for secp256k1.
@@ -192,14 +193,15 @@ fn validate_private_key_range(private_key_le_bytes: [u8; 32]) {
 // Validates that the signature's s-value is in the lower half of the curve order.
 // This prevents ECDSA signature malleability where (r, s) and (r, n-s) are both valid.
 // By enforcing low-s, we ensure signature uniqueness.
+// Note: The signature is in big-endian format (standard ECDSA encoding).
 fn validate_signature_low_s(signature: [u8; 64]) {
-    // s is the second 32 bytes of the signature (little-endian)
+    // s is the second 32 bytes of the signature (big-endian)
     let mut s_exceeds: bool = false;
     let mut all_equal_so_far: bool = true;
 
     for i in 0..32 {
         let s_byte = signature[i + 32];
-        let half_order_byte = SECP256K1_HALF_ORDER_LE[i];
+        let half_order_byte = SECP256K1_HALF_ORDER_BE[i];
 
         if all_equal_so_far {
             if s_byte > half_order_byte {
