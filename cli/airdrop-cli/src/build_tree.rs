@@ -9,6 +9,7 @@ use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
 const MAX_ADDRESSES: usize = 1 << MERKLE_DEPTH;
+const MAX_INPUT_FILE_SIZE: u64 = 500 * 1024 * 1024;
 /// Estimated memory usage per address in bytes.
 /// Breakdown: 32 bytes (leaf hash) + 32 bytes (HashMap entry overhead) +
 /// ~100 bytes (HashMap bucket + allocation overhead) = ~164 bytes
@@ -84,6 +85,15 @@ pub fn build_merkle_tree(leaves: MerkleTreeLevel) -> Result<(MerkleTree, [u8; 32
 pub fn run(cli: Cli) -> Result<()> {
     println!("Reading addresses from {:?}...", cli.input);
     let file = File::open(&cli.input).context("Failed to open input file")?;
+    let metadata = file.metadata().context("Failed to get file metadata")?;
+    let file_size = metadata.len();
+    if file_size > MAX_INPUT_FILE_SIZE {
+        anyhow::bail!(
+            "Input file too large: {} bytes (max {} bytes)",
+            file_size,
+            MAX_INPUT_FILE_SIZE
+        );
+    }
     let reader = BufReader::new(file);
 
     let mut leaves = Vec::new();
