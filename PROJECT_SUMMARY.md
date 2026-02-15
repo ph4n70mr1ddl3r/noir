@@ -104,8 +104,8 @@ noir/
 - `hex` - Hex encoding/decoding
 
 **Noir:**
-- Standard library (hash, crypto)
-- poseidon2 for Merkle tree hashing
+- `keccak256` crate for hashing
+- Standard library (ecdsa_secp256k1 for signature verification)
 
 **Solidity:**
 - Foundry framework
@@ -143,7 +143,7 @@ noir/
 
 ## Customization
 
-- **Claim Amount**: Edit `contracts/Airdrop.sol` line 20
+- **Claim Amount**: Edit `contracts/Airdrop.sol` `CLAIM_AMOUNT` constant
 - **Tree Depth**: Edit `circuits/airdrop/src/main.nr` line 3
 - **Hash Function**: Replace Keccak with Poseidon2 in CLI tools
 
