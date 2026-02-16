@@ -137,21 +137,23 @@ fn validate_signature(value: &str) -> Result<[u8; 64]> {
     }
 
     // Check that s is in lower half of curve order (low-s requirement)
-    let mut s_exceeds = false;
+    // Standard requires s <= n/2, so we check for s > n/2 (strictly greater)
+    let mut s_greater = false;
     let mut all_equal = true;
     for i in 0..32 {
         if all_equal {
             match bytes[32 + i].cmp(&SECP256K1_HALF_ORDER_BE[i]) {
-                std::cmp::Ordering::Greater => s_exceeds = true,
+                std::cmp::Ordering::Greater => {
+                    s_greater = true;
+                    all_equal = false;
+                }
                 std::cmp::Ordering::Less => all_equal = false,
                 std::cmp::Ordering::Equal => {}
             }
         }
     }
-    if all_equal {
-        s_exceeds = true;
-    }
-    if s_exceeds {
+    // s == n/2 is valid (boundary case), only reject if s > n/2
+    if s_greater {
         anyhow::bail!("Invalid signature: s component exceeds half order (not low-s)");
     }
 
@@ -815,6 +817,23 @@ mod tests {
         let sig = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
         let result = validate_signature(sig);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_signature_s_equals_half_order_is_valid() {
+        // s = n/2 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
+        // This is the boundary case and should be VALID (s <= n/2)
+        let sig = "0x00000000000000000000000000000000000000000000000000000000000000017FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0";
+        let result = validate_signature(sig);
+        assert!(result.is_ok(), "s == n/2 should be valid");
+    }
+
+    #[test]
+    fn test_validate_signature_s_exceeds_half_order() {
+        // s = n/2 + 1 (exceeds half order, should be rejected)
+        let sig = "0x00000000000000000000000000000000000000000000000000000000000000017FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A1";
+        let result = validate_signature(sig);
+        assert!(result.is_err(), "s > n/2 should be rejected");
     }
 
     #[test]
