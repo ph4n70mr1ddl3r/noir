@@ -326,18 +326,28 @@ fn private_key_to_address(signing_key: &SigningKey) -> ([u8; 20], [u8; 32], [u8;
 }
 
 pub fn run(mut cli: Cli) -> Result<()> {
+    // Validate all paths before processing
     if !is_path_safe(&cli.tree) {
-        anyhow::bail!("Invalid tree path: directory traversal not allowed");
+        anyhow::bail!("Invalid tree path: directory traversal not allowed. Path must be relative and within the current directory.");
     }
     if !is_path_safe(&cli.index_map) {
-        anyhow::bail!("Invalid index map path: directory traversal not allowed");
+        anyhow::bail!("Invalid index map path: directory traversal not allowed. Path must be relative and within the current directory.");
     }
     if !is_path_safe(&cli.output) {
-        anyhow::bail!("Invalid output path: directory traversal not allowed");
+        anyhow::bail!("Invalid output path: directory traversal not allowed. Path must be relative and within the current directory.");
+    }
+
+    // Check if input files exist early
+    if !cli.tree.exists() {
+        anyhow::bail!("Merkle tree file does not exist: {:?}", cli.tree);
+    }
+    if !cli.index_map.exists() {
+        anyhow::bail!("Index map file does not exist: {:?}", cli.index_map);
     }
 
     println!("Validating Merkle root...");
-    let merkle_root = validate_merkle_root(&cli.root).context("Invalid Merkle root")?;
+    let merkle_root = validate_merkle_root(&cli.root)
+        .with_context(|| format!("Invalid Merkle root provided: {}", cli.root))?;
 
     println!("Loading Merkle tree...");
     let tree = load_merkle_tree(&cli.tree).context("Failed to load Merkle tree")?;

@@ -301,9 +301,15 @@ pub fn get_merkle_proof(
 /// - Paths containing parent directory references (..)
 /// - Paths starting with ~ (home directory expansion)
 /// - Symlinks that resolve to locations outside the current directory
+/// - Empty paths
 #[must_use]
 pub fn is_path_safe<P: AsRef<Path>>(path: P) -> bool {
     let path = path.as_ref();
+
+    // Reject empty paths
+    if path.as_os_str().is_empty() {
+        return false;
+    }
 
     if path.is_absolute() {
         return false;
@@ -311,7 +317,10 @@ pub fn is_path_safe<P: AsRef<Path>>(path: P) -> bool {
 
     let path_str = path.to_string_lossy();
 
-    if path_str.contains("..") {
+    // Normalize path separators for cross-platform safety
+    let normalized = path_str.replace('\\', "/");
+
+    if normalized.contains("..") {
         return false;
     }
 
@@ -671,6 +680,12 @@ mod tests {
         assert!(is_path_safe("subdir/output.txt"));
         assert!(is_path_safe("./output.txt"));
         assert!(is_path_safe("a/b/c/output.txt"));
+    }
+
+    #[test]
+    fn test_is_path_safe_empty() {
+        assert!(!is_path_safe(""));
+        assert!(!is_path_safe(std::path::Path::new("")));
     }
 
     #[test]

@@ -67,7 +67,8 @@ contract Airdrop is ReentrancyGuard {
     ///      n/2 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
     ///      This value is enforced in the Noir circuit's validate_signature_low_s function.
     ///      Included here for documentation and cross-component consistency verification.
-    bytes32 public constant SECP256K1_HALF_ORDER = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0;
+    bytes32 public constant SECP256K1_HALF_ORDER =
+        0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0;
 
     error NullifierAlreadyUsed();
     error InvalidProof();
@@ -158,14 +159,22 @@ contract Airdrop is ReentrancyGuard {
     event Paused(address indexed account);
     event Unpaused(address indexed account);
     event TokensWithdrawn(address indexed owner, uint256 amount);
-    event RootUpdateScheduled(bytes32 indexed newRoot, bytes32 indexed operationHash, uint256 executeAfter);
-    event VerifierUpdateScheduled(address indexed newVerifier, bytes32 indexed operationHash, uint256 executeAfter);
-    event MaxClaimsUpdateScheduled(uint256 newMaxClaims, bytes32 indexed operationHash, uint256 executeAfter);
+    event RootUpdateScheduled(
+        bytes32 indexed newRoot, bytes32 indexed operationHash, uint256 executeAfter
+    );
+    event VerifierUpdateScheduled(
+        address indexed newVerifier, bytes32 indexed operationHash, uint256 executeAfter
+    );
+    event MaxClaimsUpdateScheduled(
+        uint256 newMaxClaims, bytes32 indexed operationHash, uint256 executeAfter
+    );
     event WithdrawalScheduled(uint256 amount, bytes32 indexed operationHash, uint256 executeAfter);
     event RenounceOwnershipScheduled(bytes32 indexed operationHash, uint256 executeAfter);
     event BatchClaimed(address indexed recipient, uint256 indexed claimCount, uint256 totalAmount);
     event BatchOperationsCancelled(bytes32[] indexed operationHashes, uint256 count);
-    event BatchOperationsScheduled(bytes32[] indexed operationHashes, uint256 count, uint256 executeAfter);
+    event BatchOperationsScheduled(
+        bytes32[] indexed operationHashes, uint256 count, uint256 executeAfter
+    );
 
     enum OperationStatus {
         NotScheduled,
@@ -407,11 +416,7 @@ contract Airdrop is ReentrancyGuard {
     /// @dev Gas-efficient batch operation with pre-validation of all inputs.
     ///      Reverts if any claim in the batch would fail.
     /// @param claims Array of claim parameters, maximum MAX_BATCH_CLAIMS (10)
-    function batchClaim(ClaimParams[] calldata claims)
-        external
-        nonReentrant
-        whenNotPaused
-    {
+    function batchClaim(ClaimParams[] calldata claims) external nonReentrant whenNotPaused {
         if (claims.length == 0) revert EmptyBatch();
         if (claims.length > MAX_BATCH_CLAIMS) revert BatchClaimsTooLarge();
 
@@ -430,7 +435,6 @@ contract Airdrop is ReentrancyGuard {
 
         bytes32 merkleRoot_ = merkleRoot;
         uint256 batchTotal = 0;
-        address firstRecipient = address(0);
 
         for (uint256 i = 0; i < claims.length;) {
             ClaimParams calldata claimParams = claims[i];
@@ -452,10 +456,6 @@ contract Airdrop is ReentrancyGuard {
                 unchecked {
                     ++j;
                 }
-            }
-
-            if (i == 0) {
-                firstRecipient = claimParams.recipient;
             }
 
             uint256[] memory publicInputs = new uint256[](3);
@@ -488,7 +488,7 @@ contract Airdrop is ReentrancyGuard {
         }
         claimCount = currentClaimCount;
 
-        emit BatchClaimed(firstRecipient, claims.length, batchTotal);
+        emit BatchClaimed(msg.sender, claims.length, batchTotal);
     }
 
     /// @notice Updates the Merkle root after timelock expires
@@ -626,7 +626,7 @@ contract Airdrop is ReentrancyGuard {
         if (operationHashes.length > MAX_BATCH_SIZE) revert BatchTooLarge();
 
         uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
-        
+
         for (uint256 i = 0; i < operationHashes.length;) {
             bytes32 opHash = operationHashes[i];
             if (timelockSchedule[opHash] != 0) revert OperationAlreadyScheduled();
@@ -691,7 +691,15 @@ contract Airdrop is ReentrancyGuard {
     /// @notice Returns the status of a timelocked operation
     /// @param operationHash The hash of the operation to check
     /// @return status The current status of the operation
-    function getOperationStatus(bytes32 operationHash) external view returns (OperationStatus status) {
+    function getOperationStatus(bytes32 operationHash)
+        external
+        view
+        returns (OperationStatus status)
+    {
+        // Gas optimization: Check for zero hash first
+        if (operationHash == bytes32(0)) {
+            return OperationStatus.NotScheduled;
+        }
         if (executedOperations[operationHash]) {
             return OperationStatus.Executed;
         }
@@ -711,7 +719,11 @@ contract Airdrop is ReentrancyGuard {
     /// @notice Returns the scheduled execution time for an operation
     /// @param operationHash The hash of the operation to check
     /// @return executeAfter The timestamp after which the operation can be executed (0 if not scheduled)
-    function getOperationSchedule(bytes32 operationHash) external view returns (uint256 executeAfter) {
+    function getOperationSchedule(bytes32 operationHash)
+        external
+        view
+        returns (uint256 executeAfter)
+    {
         return timelockSchedule[operationHash];
     }
 
