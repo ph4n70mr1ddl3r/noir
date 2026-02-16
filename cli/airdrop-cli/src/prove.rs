@@ -138,22 +138,7 @@ fn validate_signature(value: &str) -> Result<[u8; 64]> {
 
     // Check that s is in lower half of curve order (low-s requirement)
     // Standard requires s <= n/2, so we check for s > n/2 (strictly greater)
-    let mut s_greater = false;
-    let mut all_equal = true;
-    for i in 0..32 {
-        if all_equal {
-            match bytes[32 + i].cmp(&SECP256K1_HALF_ORDER_BE[i]) {
-                std::cmp::Ordering::Greater => {
-                    s_greater = true;
-                    all_equal = false;
-                }
-                std::cmp::Ordering::Less => all_equal = false,
-                std::cmp::Ordering::Equal => {}
-            }
-        }
-    }
-    // s == n/2 is valid (boundary case), only reject if s > n/2
-    if s_greater {
+    if &bytes[32..64] > SECP256K1_HALF_ORDER_BE.as_slice() {
         anyhow::bail!("Invalid signature: s component exceeds half order (not low-s)");
     }
 
