@@ -94,7 +94,7 @@ contract Airdrop is ReentrancyGuard {
     error ContractPaused();
     error ContractNotPaused();
     error EthNotAccepted();
-    error UnknownFunction();
+    error UnknownFunction(bytes4 selector);
     error InsufficientBalanceForWithdraw();
     error ClaimToContract();
     error InvalidNullifier();
@@ -102,6 +102,8 @@ contract Airdrop is ReentrancyGuard {
     error BatchTooLarge();
     error BatchClaimsTooLarge();
     error NoPendingOwnershipTransfer();
+    error CannotRecoverAirdropToken();
+    error InvalidRecoveryToken();
 
     address public owner;
     address public pendingOwner;
@@ -176,6 +178,10 @@ contract Airdrop is ReentrancyGuard {
     event BatchOperationsScheduled(
         bytes32[] indexed operationHashes, uint256 count, uint256 executeAfter
     );
+    event EmergencyTokenRecoveryScheduled(
+        address indexed token, uint256 amount, bytes32 indexed operationHash, uint256 executeAfter
+    );
+    event EmergencyTokenRecovered(address indexed token, uint256 amount);
 
     enum OperationStatus {
         NotScheduled,
@@ -570,6 +576,38 @@ contract Airdrop is ReentrancyGuard {
         emit TokensWithdrawn(owner, amount);
     }
 
+    /// @notice Schedules emergency recovery of accidentally sent tokens
+    /// @dev Subject to 2-day timelock. Cannot recover the airdrop token itself.
+    /// @param recoveryToken Address of the token to recover
+    /// @param amount Amount of tokens to recover
+    function scheduleEmergencyTokenRecovery(address recoveryToken, uint256 amount) external onlyOwner {
+        if (recoveryToken == address(0)) revert InvalidRecoveryToken();
+        if (recoveryToken == address(token)) revert CannotRecoverAirdropToken();
+        if (!_isContract(recoveryToken)) revert InvalidRecoveryToken();
+        bytes32 operationHash = _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
+        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
+        _scheduleOperation(operationHash);
+        emit EmergencyTokenRecoveryScheduled(recoveryToken, amount, operationHash, executeAfter);
+    }
+
+    /// @notice Executes emergency recovery of accidentally sent tokens
+    /// @dev Subject to 2-day timelock. Must call scheduleEmergencyTokenRecovery first.
+    /// @param recoveryToken Address of the token to recover
+    /// @param amount Amount of tokens to recover
+    function emergencyRecoverToken(address recoveryToken, uint256 amount) external onlyOwner {
+        if (recoveryToken == address(0)) revert InvalidRecoveryToken();
+        if (recoveryToken == address(token)) revert CannotRecoverAirdropToken();
+        bytes32 operationHash = _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
+        _executeTimelockedOperation(operationHash);
+        
+        (bool success, bytes memory data) =
+            recoveryToken.call(abi.encodeWithSelector(IERC20.transfer.selector, owner, amount));
+        if (!success) revert TransferFailed();
+        if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
+        
+        emit EmergencyTokenRecovered(recoveryToken, amount);
+    }
+
     /// @notice Internal function for safe ERC20 token transfers
     /// @dev Uses low-level call to handle non-compliant ERC20 tokens that don't return bool
     /// @param recipient Address to receive the tokens
@@ -868,6 +906,6 @@ contract Airdrop is ReentrancyGuard {
     }
 
     fallback() external payable {
-        revert UnknownFunction();
+        revert UnknownFunction(msg.sig);
     }
 }

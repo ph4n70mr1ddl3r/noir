@@ -2331,6 +2331,62 @@ contract AirdropTest is Test {
         airdrop.updateRoot(newRoot);
         vm.stopPrank();
     }
+
+    function testEmergencyTokenRecovery() public {
+        MockERC20 wrongToken = new MockERC20();
+        wrongToken.mint(address(airdrop), 1000 * 10 ** 18);
+
+        vm.startPrank(owner);
+        airdrop.scheduleEmergencyTokenRecovery(address(wrongToken), 1000 * 10 ** 18);
+
+        vm.warp(block.timestamp + 2 days + 1);
+
+        uint256 ownerBalanceBefore = wrongToken.balanceOf(owner);
+        airdrop.emergencyRecoverToken(address(wrongToken), 1000 * 10 ** 18);
+
+        assertEq(wrongToken.balanceOf(owner), ownerBalanceBefore + 1000 * 10 ** 18);
+        assertEq(wrongToken.balanceOf(address(airdrop)), 0);
+        vm.stopPrank();
+    }
+
+    function testEmergencyTokenRecoveryCannotRecoverAirdropToken() public {
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.CannotRecoverAirdropToken.selector);
+        airdrop.scheduleEmergencyTokenRecovery(address(token), 100 * 10 ** 18);
+    }
+
+    function testEmergencyTokenRecoveryZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InvalidRecoveryToken.selector);
+        airdrop.scheduleEmergencyTokenRecovery(address(0), 100 * 10 ** 18);
+    }
+
+    function testEmergencyTokenRecoveryTimelockRequired() public {
+        MockERC20 wrongToken = new MockERC20();
+        wrongToken.mint(address(airdrop), 1000 * 10 ** 18);
+
+        vm.startPrank(owner);
+
+        vm.expectRevert(Airdrop.TimelockNotExpired.selector);
+        airdrop.emergencyRecoverToken(address(wrongToken), 1000 * 10 ** 18);
+
+        vm.stopPrank();
+    }
+
+    function testEmergencyTokenRecoveryOnlyOwner() public {
+        MockERC20 wrongToken = new MockERC20();
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.NotOwner.selector);
+        airdrop.scheduleEmergencyTokenRecovery(address(wrongToken), 100 * 10 ** 18);
+    }
+
+    function testFallbackIncludesSelector() public {
+        (bool success, bytes memory data) =
+            address(airdrop).call(abi.encodeWithSignature("unknownFunction()"));
+        assertFalse(success);
+        assertGt(data.length, 0);
+    }
 }
 
 contract ReentrancyToken is IERC20 {
