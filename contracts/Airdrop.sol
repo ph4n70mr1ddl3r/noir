@@ -128,6 +128,7 @@ contract Airdrop is ReentrancyGuard {
     /// @dev ZK proofs have bounded size. This prevents malicious actors from submitting
     ///      excessively large arrays that could cause out-of-gas issues.
     uint256 public constant MAX_PROOF_LENGTH = 1000;
+    /// @notice Total number of tokens claimed
     uint256 public totalClaimed;
     /// @notice Total number of successful claims made
     uint256 public claimCount;
@@ -146,7 +147,7 @@ contract Airdrop is ReentrancyGuard {
 
     mapping(bytes32 => bool) public usedNullifiers;
 
-    event Claimed(address indexed recipient, bytes32 indexed nullifier, uint256 indexed claimCount);
+    event Claimed(address indexed recipient, bytes32 indexed nullifier, uint256 indexed claimCount, uint256 amount);
     event RootUpdated(bytes32 indexed oldRoot, bytes32 indexed newRoot);
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event RootInitialized(bytes32 indexed root);
@@ -217,6 +218,17 @@ contract Airdrop is ReentrancyGuard {
         if (!paused) revert ContractNotPaused();
     }
 
+    /// @notice Validates that an address contains deployed code
+    /// @param addr Address to check
+    /// @return True if the address contains code
+    function _isContract(address addr) internal view returns (bool) {
+        uint256 size;
+        assembly {
+            size := extcodesize(addr)
+        }
+        return size > 0;
+    }
+
     /// @notice Initializes the airdrop contract
     /// @dev Sets up the token, verifier, merkle root, and max claims. Emits RootInitialized and MaxClaimsSet events.
     /// @param _token The ERC20 token to distribute (must not be zero address)
@@ -226,6 +238,8 @@ contract Airdrop is ReentrancyGuard {
     constructor(address _token, address _verifier, bytes32 _merkleRoot, uint256 _maxClaims) {
         if (_token == address(0)) revert InvalidToken();
         if (_verifier == address(0)) revert InvalidVerifier();
+        if (!_isContract(_token)) revert InvalidToken();
+        if (!_isContract(_verifier)) revert InvalidVerifier();
         if (_merkleRoot == bytes32(0)) revert InvalidRoot();
         if (_maxClaims == 0) revert InvalidMaxClaims();
         owner = msg.sender;
@@ -316,6 +330,7 @@ contract Airdrop is ReentrancyGuard {
     /// @dev Must be called before updateVerifier. Subject to 2-day timelock.
     function scheduleUpdateVerifier(address newVerifier) external onlyOwner {
         if (newVerifier == address(0)) revert InvalidVerifier();
+        if (!_isContract(newVerifier)) revert InvalidVerifier();
         bytes32 operationHash = _hashOperation(abi.encode("updateVerifier", newVerifier));
         uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
@@ -399,7 +414,7 @@ contract Airdrop is ReentrancyGuard {
 
         _safeTransfer(recipient, CLAIM_AMOUNT);
 
-        emit Claimed(recipient, nullifier, currentClaimCount);
+        emit Claimed(recipient, nullifier, currentClaimCount, CLAIM_AMOUNT);
     }
 
     /// @notice Parameters for a single claim within a batch
@@ -475,7 +490,7 @@ contract Airdrop is ReentrancyGuard {
 
             _safeTransfer(claimParams.recipient, CLAIM_AMOUNT);
 
-            emit Claimed(claimParams.recipient, claimParams.nullifier, currentClaimCount);
+            emit Claimed(claimParams.recipient, claimParams.nullifier, currentClaimCount, CLAIM_AMOUNT);
 
             unchecked {
                 ++i;
@@ -506,6 +521,7 @@ contract Airdrop is ReentrancyGuard {
     /// @param newVerifier Address of the new verifier contract
     function updateVerifier(address newVerifier) external onlyOwner {
         if (newVerifier == address(0)) revert InvalidVerifier();
+        if (!_isContract(newVerifier)) revert InvalidVerifier();
         bytes32 operationHash = _hashOperation(abi.encode("updateVerifier", newVerifier));
         _executeTimelockedOperation(operationHash);
         address oldVerifier = address(verifier);

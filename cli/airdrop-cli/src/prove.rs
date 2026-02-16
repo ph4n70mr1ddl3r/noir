@@ -172,6 +172,12 @@ fn validate_public_key_coord(value: &str, name: &str) -> Result<[u8; 32]> {
     let mut bytes = [0u8; 32];
     hex::decode_to_slice(cleaned, &mut bytes)
         .with_context(|| format!("Invalid hex encoding for {}", name))?;
+
+    // Validate that the public key coordinate is not all zeros
+    if bytes == [0u8; 32] {
+        anyhow::bail!("Invalid {}: cannot be all zeros", name);
+    }
+
     Ok(bytes)
 }
 

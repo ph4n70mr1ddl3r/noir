@@ -201,15 +201,16 @@ contract AirdropTest is Test {
     }
 
     function testUpdateVerifierTimelock() public {
-        address newVerifier = address(0x3);
+        // Deploy a new mock verifier to use as the update target
+        MockVerifier newVerifier = new MockVerifier();
 
         vm.startPrank(owner);
-        airdrop.scheduleUpdateVerifier(newVerifier);
+        airdrop.scheduleUpdateVerifier(address(newVerifier));
 
         // Execute after timelock
         vm.warp(block.timestamp + 2 days + 1);
-        airdrop.updateVerifier(newVerifier);
-        assertEq(address(airdrop.verifier()), newVerifier);
+        airdrop.updateVerifier(address(newVerifier));
+        assertEq(address(airdrop.verifier()), address(newVerifier));
         vm.stopPrank();
     }
 
@@ -257,13 +258,14 @@ contract AirdropTest is Test {
     }
 
     function testScheduleUpdateVerifierEvent() public {
-        address newVerifier = address(0x123);
-        bytes32 expectedHash = keccak256(abi.encode("updateVerifier", newVerifier));
+        // Deploy a new mock verifier to use as the update target
+        MockVerifier newVerifier = new MockVerifier();
+        bytes32 expectedHash = keccak256(abi.encode("updateVerifier", address(newVerifier)));
 
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
-        emit VerifierUpdateScheduled(newVerifier, expectedHash, block.timestamp + 2 days);
-        airdrop.scheduleUpdateVerifier(newVerifier);
+        emit VerifierUpdateScheduled(address(newVerifier), expectedHash, block.timestamp + 2 days);
+        airdrop.scheduleUpdateVerifier(address(newVerifier));
     }
 
     function testScheduleSetMaxClaimsEvent() public {
