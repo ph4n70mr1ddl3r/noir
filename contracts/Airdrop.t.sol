@@ -11,7 +11,11 @@ contract MockVerifier is IUltraVerifier {
         shouldVerify = _shouldVerify;
     }
 
-    function verify(uint256[] calldata proof, uint256[] calldata publicInputs) external view returns (bool) {
+    function verify(uint256[] calldata proof, uint256[] calldata publicInputs)
+        external
+        view
+        returns (bool)
+    {
         if (!shouldVerify) return false;
         if (proof.length == 0) return false;
         if (publicInputs.length != 3) return false;
@@ -212,9 +216,15 @@ contract AirdropTest is Test {
     event RootInitialized(bytes32 indexed root);
     event MaxClaimsSet(uint256 indexed oldMaxClaims, uint256 indexed newMaxClaims);
     event TokensWithdrawn(address indexed owner, uint256 amount);
-    event RootUpdateScheduled(bytes32 indexed newRoot, bytes32 indexed operationHash, uint256 executeAfter);
-    event VerifierUpdateScheduled(address indexed newVerifier, bytes32 indexed operationHash, uint256 executeAfter);
-    event MaxClaimsUpdateScheduled(uint256 newMaxClaims, bytes32 indexed operationHash, uint256 executeAfter);
+    event RootUpdateScheduled(
+        bytes32 indexed newRoot, bytes32 indexed operationHash, uint256 executeAfter
+    );
+    event VerifierUpdateScheduled(
+        address indexed newVerifier, bytes32 indexed operationHash, uint256 executeAfter
+    );
+    event MaxClaimsUpdateScheduled(
+        uint256 newMaxClaims, bytes32 indexed operationHash, uint256 executeAfter
+    );
     event WithdrawalScheduled(uint256 amount, bytes32 indexed operationHash, uint256 executeAfter);
     event RenounceOwnershipScheduled(bytes32 indexed operationHash, uint256 executeAfter);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -1043,9 +1053,8 @@ contract AirdropTest is Test {
         failingVerifier.setVerify(true);
 
         vm.startPrank(owner);
-        Airdrop failingAirdrop = new Airdrop(
-            address(failingToken), address(failingVerifier), merkleRoot, MAX_CLAIMS
-        );
+        Airdrop failingAirdrop =
+            new Airdrop(address(failingToken), address(failingVerifier), merkleRoot, MAX_CLAIMS);
         failingToken.mint(address(failingAirdrop), MAX_CLAIMS * CLAIM_AMOUNT);
         vm.stopPrank();
 
@@ -1061,9 +1070,8 @@ contract AirdropTest is Test {
         smallToken.mint(owner, CLAIM_AMOUNT);
         MockVerifier smallVerifier = new MockVerifier();
         smallVerifier.setVerify(true);
-        Airdrop smallAirdrop = new Airdrop(
-            address(smallToken), address(smallVerifier), merkleRoot, 10
-        );
+        Airdrop smallAirdrop =
+            new Airdrop(address(smallToken), address(smallVerifier), merkleRoot, 10);
         smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT);
         vm.stopPrank();
 
@@ -1081,9 +1089,8 @@ contract AirdropTest is Test {
         singleToken.mint(owner, CLAIM_AMOUNT);
         MockVerifier singleVerifier = new MockVerifier();
         singleVerifier.setVerify(true);
-        Airdrop singleAirdrop = new Airdrop(
-            address(singleToken), address(singleVerifier), merkleRoot, 1
-        );
+        Airdrop singleAirdrop =
+            new Airdrop(address(singleToken), address(singleVerifier), merkleRoot, 1);
         singleToken.transfer(address(singleAirdrop), CLAIM_AMOUNT);
         vm.stopPrank();
 
@@ -1151,9 +1158,7 @@ contract AirdropTest is Test {
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
         });
 
         vm.prank(user);
@@ -1168,9 +1173,7 @@ contract AirdropTest is Test {
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
         });
 
         vm.prank(user);
@@ -1183,14 +1186,10 @@ contract AirdropTest is Test {
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
         });
         claims[1] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
         });
 
         vm.prank(user);
@@ -1206,9 +1205,8 @@ contract AirdropTest is Test {
         smallToken.mint(owner, CLAIM_AMOUNT * 5);
         MockVerifier smallVerifier = new MockVerifier();
         smallVerifier.setVerify(true);
-        Airdrop smallAirdrop = new Airdrop(
-            address(smallToken), address(smallVerifier), merkleRoot, 2
-        );
+        Airdrop smallAirdrop =
+            new Airdrop(address(smallToken), address(smallVerifier), merkleRoot, 2);
         smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT * 2);
         vm.stopPrank();
 
@@ -1233,9 +1231,7 @@ contract AirdropTest is Test {
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
         });
 
         vm.prank(user);
@@ -1281,9 +1277,7 @@ contract AirdropTest is Test {
         for (uint256 i = 0; i < batchSize; i++) {
             address recipient = (i == zeroIndex) ? address(0) : address(uint160(i + 2000));
             claims[i] = Airdrop.ClaimParams({
-                proof: _mockProof(),
-                nullifier: bytes32(uint256(i + 1000)),
-                recipient: recipient
+                proof: _mockProof(), nullifier: bytes32(uint256(i + 1000)), recipient: recipient
             });
         }
 
@@ -1303,9 +1297,7 @@ contract AirdropTest is Test {
         for (uint256 i = 0; i < batchSize; i++) {
             bytes32 nullifier = (i == zeroIndex) ? bytes32(0) : bytes32(uint256(i + 1000));
             claims[i] = Airdrop.ClaimParams({
-                proof: _mockProof(),
-                nullifier: nullifier,
-                recipient: address(uint160(i + 2000))
+                proof: _mockProof(), nullifier: nullifier, recipient: address(uint160(i + 2000))
             });
         }
 
@@ -1331,14 +1323,10 @@ contract AirdropTest is Test {
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(999)),
-            recipient: address(attacker)
+            proof: _mockProof(), nullifier: bytes32(uint256(999)), recipient: address(attacker)
         });
         claims[1] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(1000)),
-            recipient: address(attacker)
+            proof: _mockProof(), nullifier: bytes32(uint256(1000)), recipient: address(attacker)
         });
 
         vm.prank(address(attacker));
@@ -1450,14 +1438,10 @@ contract AirdropTest is Test {
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: address(airdrop)
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: address(airdrop)
         });
         claims[1] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(101)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(101)), recipient: user
         });
 
         vm.prank(user);
@@ -1470,14 +1454,10 @@ contract AirdropTest is Test {
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
         });
         claims[1] = Airdrop.ClaimParams({
-            proof: new uint256[](0),
-            nullifier: bytes32(uint256(101)),
-            recipient: user
+            proof: new uint256[](0), nullifier: bytes32(uint256(101)), recipient: user
         });
 
         vm.prank(user);
@@ -1495,9 +1475,7 @@ contract AirdropTest is Test {
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
         claims[0] = Airdrop.ClaimParams({
-            proof: longProof,
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: longProof, nullifier: bytes32(uint256(100)), recipient: user
         });
 
         vm.prank(user);
@@ -1513,9 +1491,8 @@ contract AirdropTest is Test {
         smallToken.mint(owner, CLAIM_AMOUNT);
         MockVerifier smallVerifier = new MockVerifier();
         smallVerifier.setVerify(true);
-        Airdrop smallAirdrop = new Airdrop(
-            address(smallToken), address(smallVerifier), merkleRoot, 10
-        );
+        Airdrop smallAirdrop =
+            new Airdrop(address(smallToken), address(smallVerifier), merkleRoot, 10);
         smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT);
         vm.stopPrank();
 
@@ -1533,7 +1510,9 @@ contract AirdropTest is Test {
         smallAirdrop.batchClaim(claims);
     }
 
-    function testFuzz_BatchClaimRejectsContractRecipient(uint8 batchSize, uint8 contractIndex) public {
+    function testFuzz_BatchClaimRejectsContractRecipient(uint8 batchSize, uint8 contractIndex)
+        public
+    {
         vm.assume(batchSize > 0);
         vm.assume(batchSize <= 10);
         vm.assume(contractIndex < batchSize);
@@ -1544,9 +1523,7 @@ contract AirdropTest is Test {
         for (uint256 i = 0; i < batchSize; i++) {
             address recipient = (i == contractIndex) ? address(airdrop) : address(uint160(i + 2000));
             claims[i] = Airdrop.ClaimParams({
-                proof: _mockProof(),
-                nullifier: bytes32(uint256(i + 90000)),
-                recipient: recipient
+                proof: _mockProof(), nullifier: bytes32(uint256(i + 90000)), recipient: recipient
             });
         }
 
@@ -1578,9 +1555,8 @@ contract AirdropTest is Test {
         failingVerifier.setVerify(true);
 
         vm.startPrank(owner);
-        Airdrop failingAirdrop = new Airdrop(
-            address(failingToken), address(failingVerifier), merkleRoot, MAX_CLAIMS
-        );
+        Airdrop failingAirdrop =
+            new Airdrop(address(failingToken), address(failingVerifier), merkleRoot, MAX_CLAIMS);
         failingToken.mint(address(failingAirdrop), MAX_CLAIMS * CLAIM_AMOUNT);
         vm.stopPrank();
 
@@ -1607,7 +1583,8 @@ contract AirdropTest is Test {
     }
 
     function testSECP256K1HalfOrder() public view {
-        bytes32 expectedHalfOrder = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0;
+        bytes32 expectedHalfOrder =
+            0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0;
         assertEq(airdrop.SECP256K1_HALF_ORDER(), expectedHalfOrder);
     }
 
@@ -1652,10 +1629,7 @@ contract AirdropTest is Test {
             airdrop.claim(_mockProof(), claimNullifier, recipient);
 
             // Invariant: contract balance should decrease by exactly CLAIM_AMOUNT per claim
-            assertEq(
-                token.balanceOf(address(airdrop)),
-                initialBalance - (i + 1) * CLAIM_AMOUNT
-            );
+            assertEq(token.balanceOf(address(airdrop)), initialBalance - (i + 1) * CLAIM_AMOUNT);
         }
 
         // Invariant: totalClaimed should equal the sum of all claims
@@ -1690,7 +1664,9 @@ contract AirdropTest is Test {
 
     function testGetOperationStatusNotScheduled() public view {
         bytes32 fakeHash = keccak256("fake");
-        assertEq(uint8(airdrop.getOperationStatus(fakeHash)), uint8(Airdrop.OperationStatus.NotScheduled));
+        assertEq(
+            uint8(airdrop.getOperationStatus(fakeHash)), uint8(Airdrop.OperationStatus.NotScheduled)
+        );
     }
 
     function testGetOperationStatusScheduled() public {
@@ -1699,7 +1675,10 @@ contract AirdropTest is Test {
         airdrop.scheduleUpdateRoot(newRoot);
 
         bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
-        assertEq(uint8(airdrop.getOperationStatus(operationHash)), uint8(Airdrop.OperationStatus.Scheduled));
+        assertEq(
+            uint8(airdrop.getOperationStatus(operationHash)),
+            uint8(Airdrop.OperationStatus.Scheduled)
+        );
     }
 
     function testGetOperationStatusExecuted() public {
@@ -1710,7 +1689,10 @@ contract AirdropTest is Test {
         airdrop.updateRoot(newRoot);
 
         bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
-        assertEq(uint8(airdrop.getOperationStatus(operationHash)), uint8(Airdrop.OperationStatus.Executed));
+        assertEq(
+            uint8(airdrop.getOperationStatus(operationHash)),
+            uint8(Airdrop.OperationStatus.Executed)
+        );
         vm.stopPrank();
     }
 
@@ -1721,7 +1703,10 @@ contract AirdropTest is Test {
 
         bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
         airdrop.cancelOperation(operationHash);
-        assertEq(uint8(airdrop.getOperationStatus(operationHash)), uint8(Airdrop.OperationStatus.Cancelled));
+        assertEq(
+            uint8(airdrop.getOperationStatus(operationHash)),
+            uint8(Airdrop.OperationStatus.Cancelled)
+        );
         vm.stopPrank();
     }
 
@@ -1732,7 +1717,9 @@ contract AirdropTest is Test {
 
         bytes32 operationHash = keccak256(abi.encode("updateRoot", newRoot));
         vm.warp(block.timestamp + 14 days + 2 days + 1);
-        assertEq(uint8(airdrop.getOperationStatus(operationHash)), uint8(Airdrop.OperationStatus.Expired));
+        assertEq(
+            uint8(airdrop.getOperationStatus(operationHash)), uint8(Airdrop.OperationStatus.Expired)
+        );
         vm.stopPrank();
     }
 
@@ -1758,7 +1745,8 @@ contract AirdropTest is Test {
         vm.prank(owner);
         airdrop.pause();
 
-        (bool isValid, string memory reason) = airdrop.validateClaimParams(bytes32(uint256(456)), user);
+        (bool isValid, string memory reason) =
+            airdrop.validateClaimParams(bytes32(uint256(456)), user);
         assertFalse(isValid);
         assertEq(reason, "Contract is paused");
     }
@@ -1781,13 +1769,15 @@ contract AirdropTest is Test {
     }
 
     function testValidateClaimParamsInvalidRecipient() public view {
-        (bool isValid, string memory reason) = airdrop.validateClaimParams(bytes32(uint256(456)), address(0));
+        (bool isValid, string memory reason) =
+            airdrop.validateClaimParams(bytes32(uint256(456)), address(0));
         assertFalse(isValid);
         assertEq(reason, "Invalid recipient");
     }
 
     function testValidateClaimParamsContractRecipient() public view {
-        (bool isValid, string memory reason) = airdrop.validateClaimParams(bytes32(uint256(456)), address(airdrop));
+        (bool isValid, string memory reason) =
+            airdrop.validateClaimParams(bytes32(uint256(456)), address(airdrop));
         assertFalse(isValid);
         assertEq(reason, "Cannot claim to contract");
     }
@@ -1795,14 +1785,10 @@ contract AirdropTest is Test {
     function testValidateBatchClaimParamsValid() public view {
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
         });
         claims[1] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(101)),
-            recipient: address(0xABC)
+            proof: _mockProof(), nullifier: bytes32(uint256(101)), recipient: address(0xABC)
         });
 
         (bool isValid, string memory reason) = airdrop.validateBatchClaimParams(claims);
@@ -1821,9 +1807,7 @@ contract AirdropTest is Test {
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](11);
         for (uint256 i = 0; i < 11; i++) {
             claims[i] = Airdrop.ClaimParams({
-                proof: _mockProof(),
-                nullifier: bytes32(uint256(i + 100)),
-                recipient: user
+                proof: _mockProof(), nullifier: bytes32(uint256(i + 100)), recipient: user
             });
         }
 
@@ -1835,14 +1819,10 @@ contract AirdropTest is Test {
     function testValidateBatchClaimParamsDuplicateNullifier() public view {
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
         });
         claims[1] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: address(0xABC)
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: address(0xABC)
         });
 
         (bool isValid, string memory reason) = airdrop.validateBatchClaimParams(claims);
@@ -1896,23 +1876,18 @@ contract AirdropTest is Test {
     function testValidateBatchClaimParamsInsufficientBalance() public {
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
         claims[0] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(100)),
-            recipient: user
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
         });
         claims[1] = Airdrop.ClaimParams({
-            proof: _mockProof(),
-            nullifier: bytes32(uint256(101)),
-            recipient: address(0xABC)
+            proof: _mockProof(), nullifier: bytes32(uint256(101)), recipient: address(0xABC)
         });
 
         vm.startPrank(owner);
         MockERC20 smallToken = new MockERC20();
         smallToken.mint(owner, CLAIM_AMOUNT);
         MockVerifier smallVerifier = new MockVerifier();
-        Airdrop smallAirdrop = new Airdrop(
-            address(smallToken), address(smallVerifier), merkleRoot, 10
-        );
+        Airdrop smallAirdrop =
+            new Airdrop(address(smallToken), address(smallVerifier), merkleRoot, 10);
         smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT);
         vm.stopPrank();
 
@@ -2008,19 +1983,27 @@ contract AirdropTest is Test {
 
         bytes32 opHash = keccak256(abi.encode("updateRoot", root));
 
-        assertEq(uint8(airdrop.getOperationStatus(opHash)), uint8(Airdrop.OperationStatus.NotScheduled));
+        assertEq(
+            uint8(airdrop.getOperationStatus(opHash)), uint8(Airdrop.OperationStatus.NotScheduled)
+        );
 
         vm.prank(owner);
         airdrop.scheduleUpdateRoot(root);
-        assertEq(uint8(airdrop.getOperationStatus(opHash)), uint8(Airdrop.OperationStatus.Scheduled));
+        assertEq(
+            uint8(airdrop.getOperationStatus(opHash)), uint8(Airdrop.OperationStatus.Scheduled)
+        );
 
         vm.prank(owner);
         airdrop.cancelOperation(opHash);
-        assertEq(uint8(airdrop.getOperationStatus(opHash)), uint8(Airdrop.OperationStatus.Cancelled));
+        assertEq(
+            uint8(airdrop.getOperationStatus(opHash)), uint8(Airdrop.OperationStatus.Cancelled)
+        );
 
         vm.prank(owner);
         airdrop.scheduleUpdateRoot(root);
-        assertEq(uint8(airdrop.getOperationStatus(opHash)), uint8(Airdrop.OperationStatus.Scheduled));
+        assertEq(
+            uint8(airdrop.getOperationStatus(opHash)), uint8(Airdrop.OperationStatus.Scheduled)
+        );
 
         vm.warp(block.timestamp + 2 days + 1);
         vm.prank(owner);
@@ -2031,15 +2014,17 @@ contract AirdropTest is Test {
     function testValidateClaimParamsAfterClaim() public {
         verifier.setVerify(true);
         bytes32 nullifier = bytes32(uint256(123456));
-        
-        (bool isValidBefore, string memory reasonBefore) = airdrop.validateClaimParams(nullifier, user);
+
+        (bool isValidBefore, string memory reasonBefore) =
+            airdrop.validateClaimParams(nullifier, user);
         assertTrue(isValidBefore);
         assertEq(reasonBefore, "");
 
         vm.prank(user);
         airdrop.claim(_mockProof(), nullifier, user);
 
-        (bool isValidAfter, string memory reasonAfter) = airdrop.validateClaimParams(nullifier, user);
+        (bool isValidAfter, string memory reasonAfter) =
+            airdrop.validateClaimParams(nullifier, user);
         assertFalse(isValidAfter);
         assertEq(reasonAfter, "Nullifier already used");
     }
@@ -2171,7 +2156,9 @@ contract AirdropTest is Test {
         vm.stopPrank();
     }
 
-    event BatchOperationsScheduled(bytes32[] indexed operationHashes, uint256 count, uint256 executeAfter);
+    event BatchOperationsScheduled(
+        bytes32[] indexed operationHashes, uint256 count, uint256 executeAfter
+    );
 
     function testBatchOperationsScheduledEvent() public {
         bytes32 root1 = bytes32(uint256(789));
