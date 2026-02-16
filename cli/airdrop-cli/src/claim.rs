@@ -57,6 +57,13 @@ pub struct Cli {
     pub include_private_key: bool,
 }
 
+/// Maximum tree size to prevent memory exhaustion.
+const MAX_TREE_SIZE: usize = 100_000_000;
+/// Maximum index map file size (100MB).
+const MAX_INDEX_MAP_FILE_SIZE: u64 = 100 * 1024 * 1024;
+/// Maximum tree file size (500MB).
+const MAX_TREE_FILE_SIZE: u64 = 500 * 1024 * 1024;
+
 #[derive(Debug, Serialize)]
 struct ClaimOutput {
     merkle_root: String,
@@ -159,10 +166,6 @@ fn load_index_map(path: &Path) -> Result<HashMap<[u8; 20], usize>> {
 
     Ok(map)
 }
-
-const MAX_TREE_SIZE: usize = 100_000_000;
-const MAX_INDEX_MAP_FILE_SIZE: u64 = 100 * 1024 * 1024;
-const MAX_TREE_FILE_SIZE: u64 = 500 * 1024 * 1024;
 
 /// Loads and validates a Merkle tree from a file.
 ///

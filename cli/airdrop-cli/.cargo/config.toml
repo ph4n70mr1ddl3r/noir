@@ -1,0 +1,15 @@
+[alias]
+t = "test --all-features"
+c = "check --all-features"
+b = "build --release"
+lint = "clippy --all-targets --all-features"
+fmt-check = "fmt --all -- --check"
+
+[build]
+rustflags = ["-D", "warnings"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
