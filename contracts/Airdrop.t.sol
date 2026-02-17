@@ -2437,6 +2437,276 @@ contract AirdropTest is Test {
         assertFalse(success);
         assertGt(data.length, 0);
     }
+
+    // ============================================================================
+    // Claim Deadline Tests
+    // ============================================================================
+
+    event ClaimDeadlineScheduled(
+        uint256 deadline, bytes32 indexed operationHash, uint256 executeAfter
+    );
+    event ClaimDeadlineUpdated(uint256 indexed oldDeadline, uint256 indexed newDeadline);
+
+    function testSetClaimDeadline() public {
+        uint256 deadline = block.timestamp + 30 days;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+
+        // Try to execute before timelock expires
+        vm.warp(block.timestamp + 1 days);
+        vm.expectRevert(Airdrop.TimelockNotExpired.selector);
+        airdrop.setClaimDeadline(deadline);
+
+        // Execute after timelock
+        vm.warp(block.timestamp + 1 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        assertEq(airdrop.claimDeadline(), deadline);
+        vm.stopPrank();
+    }
+
+    function testSetClaimDeadlineEvent() public {
+        uint256 deadline = block.timestamp + 30 days;
+        bytes32 expectedHash = keccak256(abi.encode("setClaimDeadline", deadline));
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit ClaimDeadlineScheduled(deadline, expectedHash, block.timestamp + 2 days);
+        airdrop.scheduleSetClaimDeadline(deadline);
+    }
+
+    function testSetClaimDeadlineInvalidPastDeadline() public {
+        // First warp forward so we can test a deadline in the past
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InvalidClaimDeadline.selector);
+        airdrop.scheduleSetClaimDeadline(block.timestamp - 1 hours);
+    }
+
+    function testSetClaimDeadlineInvalidCurrentTime() public {
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InvalidClaimDeadline.selector);
+        airdrop.scheduleSetClaimDeadline(block.timestamp);
+    }
+
+    function testClaimAfterDeadlineReverts() public {
+        // Set deadline 10 days in the future to have room for timelock
+        uint256 deadline = block.timestamp + 10 days;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        vm.stopPrank();
+
+        verifier.setVerify(true);
+        bytes32 nullifier = bytes32(uint256(456));
+
+        // Warp past deadline
+        vm.warp(deadline + 1);
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.ClaimDeadlinePassed.selector);
+        airdrop.claim(_mockProof(), nullifier, user);
+    }
+
+    function testBatchClaimAfterDeadlineReverts() public {
+        // Set deadline 10 days in the future to have room for timelock
+        uint256 deadline = block.timestamp + 10 days;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        vm.stopPrank();
+
+        verifier.setVerify(true);
+
+        // Warp past deadline
+        vm.warp(deadline + 1);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
+        });
+
+        vm.prank(user);
+        vm.expectRevert(Airdrop.ClaimDeadlinePassed.selector);
+        airdrop.batchClaim(claims);
+    }
+
+    function testClaimBeforeDeadlineSucceeds() public {
+        uint256 deadline = block.timestamp + 30 days;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        vm.stopPrank();
+
+        verifier.setVerify(true);
+        bytes32 nullifier = bytes32(uint256(456));
+
+        // Claim before deadline
+        vm.prank(user);
+        airdrop.claim(_mockProof(), nullifier, user);
+
+        assertTrue(airdrop.isNullifierUsed(nullifier));
+    }
+
+    function testRemoveClaimDeadline() public {
+        uint256 deadline = block.timestamp + 30 days;
+        uint256 initialTime = block.timestamp;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+        vm.warp(initialTime + 2 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        assertEq(airdrop.claimDeadline(), deadline);
+
+        // Remove deadline by setting to 0
+        airdrop.scheduleSetClaimDeadline(0);
+        vm.warp(initialTime + 4 days + 2);
+        airdrop.setClaimDeadline(0);
+        assertEq(airdrop.claimDeadline(), 0);
+        vm.stopPrank();
+    }
+
+    function testGetSetClaimDeadlineHash() public view {
+        uint256 deadline = 1234567890;
+        bytes32 expectedHash = keccak256(abi.encode("setClaimDeadline", deadline));
+        assertEq(airdrop.getSetClaimDeadlineHash(deadline), expectedHash);
+    }
+
+    function testGetClaimDeadline() public {
+        assertEq(airdrop.getClaimDeadline(), 0);
+
+        uint256 deadline = block.timestamp + 30 days;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        vm.stopPrank();
+
+        assertEq(airdrop.getClaimDeadline(), deadline);
+    }
+
+    function testCanClaim() public {
+        // Initially should be able to claim
+        assertTrue(airdrop.canClaim());
+
+        // After pausing, cannot claim
+        vm.prank(owner);
+        airdrop.pause();
+        assertFalse(airdrop.canClaim());
+
+        // After unpausing, can claim again
+        vm.prank(owner);
+        airdrop.unpause();
+        assertTrue(airdrop.canClaim());
+
+        // After setting deadline in future, can still claim
+        uint256 deadline = block.timestamp + 30 days;
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        vm.stopPrank();
+        assertTrue(airdrop.canClaim());
+
+        // After deadline passes, cannot claim
+        vm.warp(deadline + 1);
+        assertFalse(airdrop.canClaim());
+    }
+
+    function testCanClaimMaxClaimsExceeded() public {
+        verifier.setVerify(true);
+
+        // Use up all claims
+        for (uint256 i = 0; i < MAX_CLAIMS; i++) {
+            bytes32 claimNullifier = bytes32(uint256(i + 100000));
+            address recipient = address(uint160(i + 1000));
+            vm.prank(recipient);
+            airdrop.claim(_mockProof(), claimNullifier, recipient);
+        }
+
+        assertFalse(airdrop.canClaim());
+    }
+
+    function testClaimInfoIncludesDeadline() public {
+        uint256 deadline = block.timestamp + 30 days;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        vm.stopPrank();
+
+        Airdrop.ClaimInfo memory info = airdrop.claimInfo();
+        assertEq(info.claimDeadline, deadline);
+    }
+
+    function testValidateClaimParamsAfterDeadline() public {
+        // Set deadline 10 days in the future to have room for timelock
+        uint256 deadline = block.timestamp + 10 days;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        vm.stopPrank();
+
+        // Warp past deadline
+        vm.warp(deadline + 1);
+
+        bytes32 nullifier = bytes32(uint256(456));
+        (bool isValid, string memory reason) = airdrop.validateClaimParams(nullifier, user);
+        assertFalse(isValid);
+        assertEq(reason, "Claim deadline has passed");
+    }
+
+    function testValidateBatchClaimParamsAfterDeadline() public {
+        // Set deadline 10 days in the future to have room for timelock
+        uint256 deadline = block.timestamp + 10 days;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+        vm.warp(block.timestamp + 2 days + 1);
+        airdrop.setClaimDeadline(deadline);
+        vm.stopPrank();
+
+        // Warp past deadline
+        vm.warp(deadline + 1);
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
+        claims[0] = Airdrop.ClaimParams({
+            proof: _mockProof(), nullifier: bytes32(uint256(100)), recipient: user
+        });
+
+        (bool isValid, string memory reason) = airdrop.validateBatchClaimParams(claims);
+        assertFalse(isValid);
+        assertEq(reason, "Claim deadline has passed");
+    }
+
+    function testOnlyOwnerCanSetClaimDeadline() public {
+        vm.prank(user);
+        vm.expectRevert(Airdrop.NotOwner.selector);
+        airdrop.scheduleSetClaimDeadline(block.timestamp + 30 days);
+    }
+
+    function testClaimDeadlineTimelockExpiration() public {
+        uint256 deadline = block.timestamp + 30 days;
+
+        vm.startPrank(owner);
+        airdrop.scheduleSetClaimDeadline(deadline);
+
+        // Wait for 14 days + 2 days = 16 days total (past expiration)
+        vm.warp(block.timestamp + 14 days + 2 days + 1);
+        vm.expectRevert(Airdrop.OperationExpired.selector);
+        airdrop.setClaimDeadline(deadline);
+        vm.stopPrank();
+    }
 }
 
 contract ReentrancyToken is IERC20 {

@@ -322,22 +322,34 @@ pub fn is_path_safe<P: AsRef<Path>>(path: P) -> bool {
         return false;
     }
 
-    if let Ok(cwd) = std::fs::canonicalize(".") {
+    // Resolve paths to their canonical form to detect symlink attacks
+    if let Ok(cwd) = std::env::current_dir() {
         let full_path = cwd.join(path);
 
         if full_path.exists() {
+            // For existing paths, canonicalize to resolve symlinks
             if let Ok(resolved) = full_path.canonicalize() {
+                // Ensure resolved path is within the current working directory
                 if !resolved.starts_with(&cwd) {
                     return false;
                 }
             }
-        } else if let Some(parent) = full_path.parent() {
-            if parent.exists() {
-                if let Ok(resolved_parent) = parent.canonicalize() {
-                    if !resolved_parent.starts_with(&cwd) {
-                        return false;
+        } else {
+            // For non-existent paths, validate the normalized path manually
+            // by checking each component doesn't traverse above cwd
+            let mut current = cwd.clone();
+            for component in path.components() {
+                match component {
+                    std::path::Component::Normal(_) => {
+                        current.push(component);
                     }
+                    std::path::Component::CurDir => {}
+                    _ => return false, // ParentDir or other unexpected components
                 }
+            }
+            // Verify the constructed path doesn't escape cwd
+            if !current.starts_with(&cwd) {
+                return false;
             }
         }
     }

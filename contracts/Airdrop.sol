@@ -105,6 +105,8 @@ contract Airdrop is ReentrancyGuard {
     error CannotRecoverAirdropToken();
     error InvalidRecoveryToken();
     error InvalidAmount();
+    error ClaimDeadlinePassed();
+    error InvalidClaimDeadline();
 
     address public owner;
     address public pendingOwner;
@@ -150,6 +152,10 @@ contract Airdrop is ReentrancyGuard {
 
     mapping(bytes32 => bool) public usedNullifiers;
 
+    /// @notice Deadline after which claims can no longer be made (0 = no deadline)
+    /// @dev Provides a way to close the airdrop after a certain time for compliance
+    uint256 public claimDeadline;
+
     event Claimed(
         address indexed recipient,
         bytes32 indexed nullifier,
@@ -188,6 +194,10 @@ contract Airdrop is ReentrancyGuard {
         address indexed token, uint256 amount, bytes32 indexed operationHash, uint256 executeAfter
     );
     event EmergencyTokenRecovered(address indexed token, uint256 amount);
+    event ClaimDeadlineScheduled(
+        uint256 deadline, bytes32 indexed operationHash, uint256 executeAfter
+    );
+    event ClaimDeadlineUpdated(uint256 indexed oldDeadline, uint256 indexed newDeadline);
 
     enum OperationStatus {
         NotScheduled,
@@ -206,6 +216,7 @@ contract Airdrop is ReentrancyGuard {
         uint256 maxClaims;
         uint256 remainingClaims;
         bool isPaused;
+        uint256 claimDeadline;
     }
 
     modifier whenNotPaused() {
@@ -228,6 +239,14 @@ contract Airdrop is ReentrancyGuard {
     /// @dev Reverts with ContractNotPaused if not paused
     function _checkPaused() internal view {
         if (!paused) revert ContractNotPaused();
+    }
+
+    /// @notice Internal function to check if claim deadline has not passed
+    /// @dev Reverts with ClaimDeadlinePassed if deadline is set and has passed
+    function _checkClaimDeadline() internal view {
+        if (claimDeadline != 0 && block.timestamp > claimDeadline) {
+            revert ClaimDeadlinePassed();
+        }
     }
 
     /// @notice Validates that an address contains deployed code
@@ -384,6 +403,7 @@ contract Airdrop is ReentrancyGuard {
         nonReentrant
         whenNotPaused
     {
+        _checkClaimDeadline();
         if (nullifier == bytes32(0)) revert InvalidNullifier();
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed();
         if (recipient == address(0)) revert InvalidRecipient();
@@ -437,6 +457,7 @@ contract Airdrop is ReentrancyGuard {
     ///      Reverts if any claim in the batch would fail.
     /// @param claims Array of claim parameters, maximum MAX_BATCH_CLAIMS (10)
     function batchClaim(ClaimParams[] calldata claims) external nonReentrant whenNotPaused {
+        _checkClaimDeadline();
         if (claims.length == 0) revert EmptyBatch();
         if (claims.length > MAX_BATCH_CLAIMS) revert BatchClaimsTooLarge();
 
@@ -596,6 +617,27 @@ contract Airdrop is ReentrancyGuard {
         );
     }
 
+    /// @notice Schedules setting a claim deadline
+    /// @dev Subject to 2-day timelock. Once set, claims cannot be made after the deadline.
+    /// @param deadline The timestamp after which claims are disabled (0 to remove deadline)
+    function scheduleSetClaimDeadline(uint256 deadline) external onlyOwner {
+        if (deadline != 0 && deadline <= block.timestamp) revert InvalidClaimDeadline();
+        bytes32 operationHash = _hashOperation(abi.encode("setClaimDeadline", deadline));
+        _scheduleOperation(operationHash);
+        emit ClaimDeadlineScheduled(deadline, operationHash, block.timestamp + TIMELOCK_DELAY);
+    }
+
+    /// @notice Sets the claim deadline after timelock expires
+    /// @param deadline The timestamp after which claims are disabled (0 to remove deadline)
+    function setClaimDeadline(uint256 deadline) external onlyOwner {
+        if (deadline != 0 && deadline <= block.timestamp) revert InvalidClaimDeadline();
+        bytes32 operationHash = _hashOperation(abi.encode("setClaimDeadline", deadline));
+        _executeTimelockedOperation(operationHash);
+        uint256 oldDeadline = claimDeadline;
+        claimDeadline = deadline;
+        emit ClaimDeadlineUpdated(oldDeadline, deadline);
+    }
+
     /// @notice Executes emergency recovery of accidentally sent tokens
     /// @dev Subject to 2-day timelock. Must call scheduleEmergencyTokenRecovery first.
     /// @param recoveryToken Address of the token to recover
@@ -747,6 +789,7 @@ contract Airdrop is ReentrancyGuard {
         info.maxClaims = maxClaims;
         info.remainingClaims = maxClaims > claimCount ? maxClaims - claimCount : 0;
         info.isPaused = paused;
+        info.claimDeadline = claimDeadline;
     }
 
     /// @notice Returns the status of a timelocked operation
@@ -827,6 +870,29 @@ contract Airdrop is ReentrancyGuard {
         return _hashOperation(abi.encode("renounceOwnership"));
     }
 
+    /// @notice Computes the operation hash for setting claim deadline
+    /// @dev Helper function for frontends to compute operation hashes without encoding
+    /// @param deadline The claim deadline timestamp
+    /// @return The operation hash
+    function getSetClaimDeadlineHash(uint256 deadline) external pure returns (bytes32) {
+        return _hashOperation(abi.encode("setClaimDeadline", deadline));
+    }
+
+    /// @notice Returns the current claim deadline
+    /// @return The timestamp after which claims are disabled (0 if no deadline)
+    function getClaimDeadline() external view returns (uint256) {
+        return claimDeadline;
+    }
+
+    /// @notice Checks if claims are currently enabled
+    /// @return True if claims can be made, false otherwise
+    function canClaim() external view returns (bool) {
+        if (paused) return false;
+        if (claimDeadline != 0 && block.timestamp > claimDeadline) return false;
+        if (claimCount >= maxClaims) return false;
+        return true;
+    }
+
     /// @notice Pre-validates claim parameters without executing the claim
     /// @dev Useful for frontends to check if a claim would succeed before submitting.
     ///      NOTE: This function does NOT validate the ZK proof - only checks:
@@ -835,6 +901,7 @@ contract Airdrop is ReentrancyGuard {
     ///      - Recipient is valid (not zero address, not contract address)
     ///      - Max claims not exceeded
     ///      - Sufficient token balance exists
+    ///      - Claim deadline has not passed
     /// @param nullifier The nullifier to validate
     /// @param recipient The recipient address to validate
     /// @return isValid True if the claim parameters are valid
@@ -845,6 +912,9 @@ contract Airdrop is ReentrancyGuard {
         returns (bool isValid, string memory reason)
     {
         if (paused) return (false, "Contract is paused");
+        if (claimDeadline != 0 && block.timestamp > claimDeadline) {
+            return (false, "Claim deadline has passed");
+        }
         if (nullifier == bytes32(0)) return (false, "Invalid nullifier");
         if (usedNullifiers[nullifier]) return (false, "Nullifier already used");
         if (recipient == address(0)) return (false, "Invalid recipient");
@@ -864,6 +934,7 @@ contract Airdrop is ReentrancyGuard {
     ///      - All nullifiers are valid and unique (including within batch)
     ///      - All recipients are valid
     ///      - All proof lengths are within limits
+    ///      - Claim deadline has not passed
     /// @param claims Array of claim parameters to validate
     /// @return isValid True if all claim parameters are valid
     /// @return reason Error reason if invalid (empty string if valid)
@@ -875,6 +946,9 @@ contract Airdrop is ReentrancyGuard {
         if (claims.length == 0) return (false, "Empty batch");
         if (claims.length > MAX_BATCH_CLAIMS) return (false, "Batch too large");
         if (paused) return (false, "Contract is paused");
+        if (claimDeadline != 0 && block.timestamp > claimDeadline) {
+            return (false, "Claim deadline has passed");
+        }
         if (claimCount + claims.length > maxClaims) return (false, "Max claims exceeded");
         if (token.balanceOf(address(this)) < CLAIM_AMOUNT * claims.length) {
             return (false, "Insufficient balance");
