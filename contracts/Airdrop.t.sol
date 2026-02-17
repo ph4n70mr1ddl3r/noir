@@ -2427,7 +2427,7 @@ contract AirdropTest is Test {
         MockERC20 wrongToken = new MockERC20();
 
         vm.prank(owner);
-        vm.expectRevert(Airdrop.InvalidMaxClaims.selector);
+        vm.expectRevert(Airdrop.InvalidAmount.selector);
         airdrop.scheduleEmergencyTokenRecovery(address(wrongToken), 0);
     }
 

@@ -188,17 +188,11 @@ pub fn validate_private_key_range(key_bytes: &[u8; 32]) -> Result<(), CommonErro
         return Err(CommonError::ZeroPrivateKey);
     }
 
-    for i in 0..32 {
-        match key_bytes[i].cmp(&SECP256K1_ORDER[i]) {
-            std::cmp::Ordering::Less => return Ok(()),
-            std::cmp::Ordering::Greater => {
-                return Err(CommonError::PrivateKeyExceedsOrder);
-            }
-            std::cmp::Ordering::Equal => continue,
-        }
+    if key_bytes >= &SECP256K1_ORDER {
+        return Err(CommonError::PrivateKeyExceedsOrder);
     }
 
-    Err(CommonError::PrivateKeyExceedsOrder)
+    Ok(())
 }
 
 /// Generates a Merkle proof for a leaf at the given index.

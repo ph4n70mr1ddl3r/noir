@@ -104,6 +104,7 @@ contract Airdrop is ReentrancyGuard {
     error NoPendingOwnershipTransfer();
     error CannotRecoverAirdropToken();
     error InvalidRecoveryToken();
+    error InvalidAmount();
 
     address public owner;
     address public pendingOwner;
@@ -576,7 +577,7 @@ contract Airdrop is ReentrancyGuard {
         if (recoveryToken == address(0)) revert InvalidRecoveryToken();
         if (recoveryToken == address(token)) revert CannotRecoverAirdropToken();
         if (!_isContract(recoveryToken)) revert InvalidRecoveryToken();
-        if (amount == 0) revert InvalidMaxClaims();
+        if (amount == 0) revert InvalidAmount();
         bytes32 operationHash = _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
         _scheduleOperation(operationHash);
         emit EmergencyTokenRecoveryScheduled(recoveryToken, amount, operationHash, block.timestamp + TIMELOCK_DELAY);
