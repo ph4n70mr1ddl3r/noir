@@ -856,6 +856,7 @@ contract Airdrop is ReentrancyGuard {
     ///      - Sufficient token balance exists
     ///      - All nullifiers are valid and unique (including within batch)
     ///      - All recipients are valid
+    ///      - All proof lengths are within limits
     /// @param claims Array of claim parameters to validate
     /// @return isValid True if all claim parameters are valid
     /// @return reason Error reason if invalid (empty string if valid)
@@ -884,6 +885,12 @@ contract Airdrop is ReentrancyGuard {
             }
             if (claims[i].recipient == address(this)) {
                 return (false, "Cannot claim to contract in batch");
+            }
+            if (claims[i].proof.length == 0) {
+                return (false, "Empty proof in batch");
+            }
+            if (claims[i].proof.length > MAX_PROOF_LENGTH) {
+                return (false, "Proof too long in batch");
             }
 
             for (uint256 j = 0; j < i;) {

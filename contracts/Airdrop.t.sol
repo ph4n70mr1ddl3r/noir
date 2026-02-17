@@ -1832,6 +1832,48 @@ contract AirdropTest is Test {
         assertEq(reason, "Duplicate nullifier in batch");
     }
 
+    function testValidateBatchClaimParamsEmptyProof() public view {
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
+        claims[0] = Airdrop.ClaimParams({
+            proof: new uint256[](0), nullifier: bytes32(uint256(100)), recipient: user
+        });
+
+        (bool isValid, string memory reason) = airdrop.validateBatchClaimParams(claims);
+        assertFalse(isValid);
+        assertEq(reason, "Empty proof in batch");
+    }
+
+    function testValidateBatchClaimParamsProofTooLong() public view {
+        uint256[] memory longProof = new uint256[](1001);
+        for (uint256 i = 0; i < 1001; i++) {
+            longProof[i] = i;
+        }
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
+        claims[0] = Airdrop.ClaimParams({
+            proof: longProof, nullifier: bytes32(uint256(100)), recipient: user
+        });
+
+        (bool isValid, string memory reason) = airdrop.validateBatchClaimParams(claims);
+        assertFalse(isValid);
+        assertEq(reason, "Proof too long in batch");
+    }
+
+    function testValidateBatchClaimParamsValidProofLength() public view {
+        uint256[] memory maxProof = new uint256[](1000);
+        for (uint256 i = 0; i < 1000; i++) {
+            maxProof[i] = i + 1;
+        }
+
+        Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](1);
+        claims[0] = Airdrop.ClaimParams({
+            proof: maxProof, nullifier: bytes32(uint256(100)), recipient: user
+        });
+
+        (bool isValid,) = airdrop.validateBatchClaimParams(claims);
+        assertTrue(isValid);
+    }
+
     event BatchOperationsCancelled(bytes32[] indexed operationHashes, uint256 count);
 
     function testBatchOperationsCancelledEvent() public {
