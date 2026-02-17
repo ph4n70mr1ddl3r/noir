@@ -2423,6 +2423,14 @@ contract AirdropTest is Test {
         airdrop.scheduleEmergencyTokenRecovery(address(wrongToken), 100 * 10 ** 18);
     }
 
+    function testEmergencyTokenRecoveryZeroAmount() public {
+        MockERC20 wrongToken = new MockERC20();
+
+        vm.prank(owner);
+        vm.expectRevert(Airdrop.InvalidMaxClaims.selector);
+        airdrop.scheduleEmergencyTokenRecovery(address(wrongToken), 0);
+    }
+
     function testFallbackIncludesSelector() public {
         (bool success, bytes memory data) =
             address(airdrop).call(abi.encodeWithSignature("unknownFunction()"));

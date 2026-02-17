@@ -272,10 +272,7 @@ contract Airdrop is ReentrancyGuard {
     /// @param data The encoded operation data
     /// @return result The keccak256 hash of the operation data
     function _hashOperation(bytes memory data) internal pure returns (bytes32 result) {
-        assembly ("memory-safe") {
-            let ptr := add(data, 32)
-            result := keccak256(ptr, mload(data))
-        }
+        result = keccak256(data);
     }
 
     /// @notice Initiates two-step ownership transfer
@@ -315,9 +312,8 @@ contract Airdrop is ReentrancyGuard {
     /// @dev Must be called before renounceOwnership. Subject to 2-day timelock.
     function scheduleRenounceOwnership() external onlyOwner {
         bytes32 operationHash = _hashOperation(abi.encode("renounceOwnership"));
-        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
-        emit RenounceOwnershipScheduled(operationHash, executeAfter);
+        emit RenounceOwnershipScheduled(operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     /// @notice Schedules a Merkle root update
@@ -326,9 +322,8 @@ contract Airdrop is ReentrancyGuard {
     function scheduleUpdateRoot(bytes32 newRoot) external onlyOwner {
         if (newRoot == bytes32(0)) revert InvalidRoot();
         bytes32 operationHash = _hashOperation(abi.encode("updateRoot", newRoot));
-        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
-        emit RootUpdateScheduled(newRoot, operationHash, executeAfter);
+        emit RootUpdateScheduled(newRoot, operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     /// @notice Schedules a verifier contract update
@@ -338,9 +333,8 @@ contract Airdrop is ReentrancyGuard {
         if (newVerifier == address(0)) revert InvalidVerifier();
         if (!_isContract(newVerifier)) revert InvalidVerifier();
         bytes32 operationHash = _hashOperation(abi.encode("updateVerifier", newVerifier));
-        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
-        emit VerifierUpdateScheduled(newVerifier, operationHash, executeAfter);
+        emit VerifierUpdateScheduled(newVerifier, operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     /// @notice Schedules a max claims update
@@ -350,9 +344,8 @@ contract Airdrop is ReentrancyGuard {
         if (_maxClaims == 0) revert InvalidMaxClaims();
         if (_maxClaims < claimCount) revert MaxClaimsBelowCurrent();
         bytes32 operationHash = _hashOperation(abi.encode("setMaxClaims", _maxClaims));
-        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
-        emit MaxClaimsUpdateScheduled(_maxClaims, operationHash, executeAfter);
+        emit MaxClaimsUpdateScheduled(_maxClaims, operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     /// @notice Pauses all claim operations
@@ -562,9 +555,8 @@ contract Airdrop is ReentrancyGuard {
     function scheduleWithdrawTokens(uint256 amount) external onlyOwner {
         if (amount > token.balanceOf(address(this))) revert InsufficientBalanceForWithdraw();
         bytes32 operationHash = _hashOperation(abi.encode("withdrawTokens", amount));
-        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
-        emit WithdrawalScheduled(amount, operationHash, executeAfter);
+        emit WithdrawalScheduled(amount, operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     /// @notice Internal function to withdraw tokens to owner
@@ -579,15 +571,15 @@ contract Airdrop is ReentrancyGuard {
     /// @notice Schedules emergency recovery of accidentally sent tokens
     /// @dev Subject to 2-day timelock. Cannot recover the airdrop token itself.
     /// @param recoveryToken Address of the token to recover
-    /// @param amount Amount of tokens to recover
+    /// @param amount Amount of tokens to recover (must be greater than 0)
     function scheduleEmergencyTokenRecovery(address recoveryToken, uint256 amount) external onlyOwner {
         if (recoveryToken == address(0)) revert InvalidRecoveryToken();
         if (recoveryToken == address(token)) revert CannotRecoverAirdropToken();
         if (!_isContract(recoveryToken)) revert InvalidRecoveryToken();
+        if (amount == 0) revert InvalidMaxClaims();
         bytes32 operationHash = _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
-        uint256 executeAfter = block.timestamp + TIMELOCK_DELAY;
         _scheduleOperation(operationHash);
-        emit EmergencyTokenRecoveryScheduled(recoveryToken, amount, operationHash, executeAfter);
+        emit EmergencyTokenRecoveryScheduled(recoveryToken, amount, operationHash, block.timestamp + TIMELOCK_DELAY);
     }
 
     /// @notice Executes emergency recovery of accidentally sent tokens
