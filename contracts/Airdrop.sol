@@ -150,7 +150,12 @@ contract Airdrop is ReentrancyGuard {
 
     mapping(bytes32 => bool) public usedNullifiers;
 
-    event Claimed(address indexed recipient, bytes32 indexed nullifier, uint256 indexed claimCount, uint256 amount);
+    event Claimed(
+        address indexed recipient,
+        bytes32 indexed nullifier,
+        uint256 indexed claimCount,
+        uint256 amount
+    );
     event RootUpdated(bytes32 indexed oldRoot, bytes32 indexed newRoot);
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event RootInitialized(bytes32 indexed root);
@@ -490,7 +495,9 @@ contract Airdrop is ReentrancyGuard {
 
             _safeTransfer(claimParams.recipient, CLAIM_AMOUNT);
 
-            emit Claimed(claimParams.recipient, claimParams.nullifier, currentClaimCount, CLAIM_AMOUNT);
+            emit Claimed(
+                claimParams.recipient, claimParams.nullifier, currentClaimCount, CLAIM_AMOUNT
+            );
 
             unchecked {
                 ++i;
@@ -573,14 +580,20 @@ contract Airdrop is ReentrancyGuard {
     /// @dev Subject to 2-day timelock. Cannot recover the airdrop token itself.
     /// @param recoveryToken Address of the token to recover
     /// @param amount Amount of tokens to recover (must be greater than 0)
-    function scheduleEmergencyTokenRecovery(address recoveryToken, uint256 amount) external onlyOwner {
+    function scheduleEmergencyTokenRecovery(address recoveryToken, uint256 amount)
+        external
+        onlyOwner
+    {
         if (recoveryToken == address(0)) revert InvalidRecoveryToken();
         if (recoveryToken == address(token)) revert CannotRecoverAirdropToken();
         if (!_isContract(recoveryToken)) revert InvalidRecoveryToken();
         if (amount == 0) revert InvalidAmount();
-        bytes32 operationHash = _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
+        bytes32 operationHash =
+            _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
         _scheduleOperation(operationHash);
-        emit EmergencyTokenRecoveryScheduled(recoveryToken, amount, operationHash, block.timestamp + TIMELOCK_DELAY);
+        emit EmergencyTokenRecoveryScheduled(
+            recoveryToken, amount, operationHash, block.timestamp + TIMELOCK_DELAY
+        );
     }
 
     /// @notice Executes emergency recovery of accidentally sent tokens
@@ -590,14 +603,15 @@ contract Airdrop is ReentrancyGuard {
     function emergencyRecoverToken(address recoveryToken, uint256 amount) external onlyOwner {
         if (recoveryToken == address(0)) revert InvalidRecoveryToken();
         if (recoveryToken == address(token)) revert CannotRecoverAirdropToken();
-        bytes32 operationHash = _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
+        bytes32 operationHash =
+            _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
         _executeTimelockedOperation(operationHash);
-        
+
         (bool success, bytes memory data) =
             recoveryToken.call(abi.encodeWithSelector(IERC20.transfer.selector, owner, amount));
         if (!success) revert TransferFailed();
         if (data.length > 0 && !abi.decode(data, (bool))) revert TransferFailed();
-        
+
         emit EmergencyTokenRecovered(recoveryToken, amount);
     }
 
