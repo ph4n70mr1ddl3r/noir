@@ -438,7 +438,7 @@ pub fn run(mut cli: Cli) -> Result<()> {
     let message_hash = Keccak256::digest(message);
     let signature: k256::ecdsa::Signature = signing_key.sign(&message_hash);
     let signature = signature.normalize_s().unwrap_or_else(|| {
-        eprintln!("INFO: Signature s-value already normalized (in lower half of curve order)");
+        eprintln!("INFO: Signature s-value is already in lower half of curve order (low-s form)");
         signature
     });
     drop(signing_key);
