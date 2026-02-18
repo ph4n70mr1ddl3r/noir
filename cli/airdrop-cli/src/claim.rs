@@ -85,6 +85,12 @@ struct ClaimOutput {
 /// Uses Keccak256 with a domain separator for cryptographic strength.
 /// The private key is converted to little-endian to match Noir's `to_le_bytes()`.
 ///
+/// # Collision Resistance
+///
+/// The nullifier is derived from the private key via Keccak256, making it
+/// computationally infeasible to find two different private keys that produce
+/// the same nullifier. The domain separator prevents cross-context replay attacks.
+///
 /// # Arguments
 /// * `private_key_bytes` - 32-byte private key (big-endian format as typical for Ethereum)
 ///
@@ -431,7 +437,10 @@ pub fn run(mut cli: Cli) -> Result<()> {
     message[12..32].copy_from_slice(&claimer_address);
     let message_hash = Keccak256::digest(message);
     let signature: k256::ecdsa::Signature = signing_key.sign(&message_hash);
-    let signature = signature.normalize_s().unwrap_or(signature);
+    let signature = signature.normalize_s().unwrap_or_else(|| {
+        eprintln!("INFO: Signature s-value already normalized (in lower half of curve order)");
+        signature
+    });
     drop(signing_key);
     let mut sig_bytes = signature.to_bytes();
     let mut signature_bytes: [u8; 64] = [0u8; 64];

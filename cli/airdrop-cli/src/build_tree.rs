@@ -84,7 +84,7 @@ pub fn build_merkle_tree(leaves: MerkleTreeLevel) -> Result<(MerkleTree, [u8; 32
         current_level = tree.last().unwrap();
     }
 
-    let root = tree.last().map(|level| level[0]).unwrap_or([0u8; 32]);
+    let root = tree.last().expect("tree has at least one level")[0];
 
     Ok((tree, root))
 }
