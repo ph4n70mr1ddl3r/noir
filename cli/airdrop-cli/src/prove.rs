@@ -12,7 +12,7 @@ use zeroize::Zeroize;
 
 use airdrop_cli::{
     is_path_safe, validate_private_key_range, write_file_atomic, MERKLE_DEPTH,
-    SECP256K1_HALF_ORDER_BE,
+    SECP256K1_HALF_ORDER_BE, SECP256K1_ORDER,
 };
 
 const MAX_CLAIM_FILE_SIZE: u64 = 10 * 1024 * 1024;
@@ -124,20 +124,20 @@ fn validate_signature(value: &str) -> Result<[u8; 64]> {
     let mut bytes = [0u8; 64];
     hex::decode_to_slice(cleaned, &mut bytes).context("Invalid hex encoding for signature")?;
 
-    // Check that r (first 32 bytes) is non-zero
     let r_nonzero = bytes[..32].iter().any(|&b| b != 0);
     if !r_nonzero {
         anyhow::bail!("Invalid signature: r component is zero");
     }
 
-    // Check that s (second 32 bytes) is non-zero
     let s_nonzero = bytes[32..64].iter().any(|&b| b != 0);
     if !s_nonzero {
         anyhow::bail!("Invalid signature: s component is zero");
     }
 
-    // Check that s is in lower half of curve order (low-s requirement)
-    // Noir circuit requires s < n/2 (strictly less), so we reject s >= n/2
+    if &bytes[..32] >= SECP256K1_ORDER.as_slice() {
+        anyhow::bail!("Invalid signature: r component must be less than secp256k1 curve order");
+    }
+
     if &bytes[32..64] >= SECP256K1_HALF_ORDER_BE.as_slice() {
         anyhow::bail!("Invalid signature: s component must be less than half order (not low-s)");
     }
@@ -829,6 +829,21 @@ mod tests {
         let sig = "0x1234";
         let result = validate_signature(sig);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_signature_r_exceeds_order() {
+        let sig = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD03641420000000000000000000000000000000000000000000000000000000000000001";
+        let result = validate_signature(sig);
+        assert!(result.is_err(), "r >= n should be rejected");
+        assert!(result.unwrap_err().to_string().contains("r component"));
+    }
+
+    #[test]
+    fn test_validate_signature_r_equals_order() {
+        let sig = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD03641410000000000000000000000000000000000000000000000000000000000000001";
+        let result = validate_signature(sig);
+        assert!(result.is_err(), "r == n should be rejected");
     }
 
     #[test]
