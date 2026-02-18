@@ -878,10 +878,17 @@ contract Airdrop is ReentrancyGuard {
         return _hashOperation(abi.encode("setClaimDeadline", deadline));
     }
 
-    /// @notice Returns the current claim deadline
-    /// @return The timestamp after which claims are disabled (0 if no deadline)
-    function getClaimDeadline() external view returns (uint256) {
-        return claimDeadline;
+    /// @notice Computes the operation hash for emergency token recovery
+    /// @dev Helper function for frontends to compute operation hashes without encoding
+    /// @param recoveryToken The token address to recover
+    /// @param amount The amount to recover
+    /// @return The operation hash
+    function getEmergencyTokenRecoveryHash(address recoveryToken, uint256 amount)
+        external
+        pure
+        returns (bytes32)
+    {
+        return _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
     }
 
     /// @notice Checks if claims are currently enabled

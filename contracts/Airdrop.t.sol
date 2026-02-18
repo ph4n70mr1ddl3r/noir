@@ -2578,8 +2578,15 @@ contract AirdropTest is Test {
         assertEq(airdrop.getSetClaimDeadlineHash(deadline), expectedHash);
     }
 
-    function testGetClaimDeadline() public {
-        assertEq(airdrop.getClaimDeadline(), 0);
+    function testGetEmergencyTokenRecoveryHash() public view {
+        address recoveryToken = address(0x123);
+        uint256 amount = 1000 * 10 ** 18;
+        bytes32 expectedHash = keccak256(abi.encode("emergencyRecoverToken", recoveryToken, amount));
+        assertEq(airdrop.getEmergencyTokenRecoveryHash(recoveryToken, amount), expectedHash);
+    }
+
+    function testClaimDeadlineGetter() public {
+        assertEq(airdrop.claimDeadline(), 0);
 
         uint256 deadline = block.timestamp + 30 days;
 
@@ -2589,7 +2596,7 @@ contract AirdropTest is Test {
         airdrop.setClaimDeadline(deadline);
         vm.stopPrank();
 
-        assertEq(airdrop.getClaimDeadline(), deadline);
+        assertEq(airdrop.claimDeadline(), deadline);
     }
 
     function testCanClaim() public {
