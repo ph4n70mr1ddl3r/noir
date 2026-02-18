@@ -476,6 +476,8 @@ contract Airdrop is ReentrancyGuard {
 
         bytes32 merkleRoot_ = merkleRoot;
         uint256 batchTotal = 0;
+        uint256[] memory publicInputs = new uint256[](3);
+        publicInputs[0] = uint256(merkleRoot_);
 
         for (uint256 i = 0; i < claims.length;) {
             ClaimParams calldata claimParams = claims[i];
@@ -499,8 +501,6 @@ contract Airdrop is ReentrancyGuard {
                 }
             }
 
-            uint256[] memory publicInputs = new uint256[](3);
-            publicInputs[0] = uint256(merkleRoot_);
             publicInputs[1] = uint256(uint160(claimParams.recipient));
             publicInputs[2] = uint256(claimParams.nullifier);
 

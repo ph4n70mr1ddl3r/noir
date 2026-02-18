@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use zeroize::Zeroize;
 
 use airdrop_cli::{
-    get_merkle_proof, hex_encode, is_path_safe, keccak256_hash, parse_address,
+    address_to_leaf, get_merkle_proof, hex_encode, is_path_safe, keccak256_hash, parse_address,
     validate_merkle_root, validate_private_key_range, write_file_atomic, DOMAIN_SEPARATOR_BYTES,
     MERKLE_DEPTH,
 };
@@ -459,6 +459,16 @@ pub fn run(mut cli: Cli) -> Result<()> {
     println!("Generating Merkle proof...");
     let (merkle_proof, merkle_indices) =
         get_merkle_proof(&tree, leaf_index).context("Failed to generate Merkle proof")?;
+
+    let expected_leaf = address_to_leaf(claimer_address);
+    if tree[0][leaf_index] != expected_leaf {
+        anyhow::bail!(
+            "Leaf mismatch at index {}: tree contains {} but expected {}. The tree file may be corrupted or built with different addresses.",
+            leaf_index,
+            hex_encode(tree[0][leaf_index]),
+            hex_encode(expected_leaf)
+        );
+    }
 
     if merkle_proof.len() != MERKLE_DEPTH {
         anyhow::bail!(

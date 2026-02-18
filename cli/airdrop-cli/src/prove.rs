@@ -137,9 +137,9 @@ fn validate_signature(value: &str) -> Result<[u8; 64]> {
     }
 
     // Check that s is in lower half of curve order (low-s requirement)
-    // Standard requires s <= n/2, so we check for s > n/2 (strictly greater)
-    if &bytes[32..64] > SECP256K1_HALF_ORDER_BE.as_slice() {
-        anyhow::bail!("Invalid signature: s component exceeds half order (not low-s)");
+    // Noir circuit requires s < n/2 (strictly less), so we reject s >= n/2
+    if &bytes[32..64] >= SECP256K1_HALF_ORDER_BE.as_slice() {
+        anyhow::bail!("Invalid signature: s component must be less than half order (not low-s)");
     }
 
     Ok(bytes)
@@ -805,12 +805,15 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_signature_s_equals_half_order_is_valid() {
+    fn test_validate_signature_s_equals_half_order_is_invalid() {
         // s = n/2 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
-        // This is the boundary case and should be VALID (s <= n/2)
+        // Noir circuit requires s < n/2 (strictly less), so s == n/2 should be INVALID
         let sig = "0x00000000000000000000000000000000000000000000000000000000000000017FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0";
         let result = validate_signature(sig);
-        assert!(result.is_ok(), "s == n/2 should be valid");
+        assert!(
+            result.is_err(),
+            "s == n/2 should be invalid (must be strictly less than n/2)"
+        );
     }
 
     #[test]
