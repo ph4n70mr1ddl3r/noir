@@ -394,7 +394,8 @@ fn validate_keys_match(cli_key: &[u8; 32], claim_key_le: &[u8; 32]) -> Result<()
     if cli_key_le != *claim_key_le {
         cli_key_le.zeroize();
         anyhow::bail!(
-            "Private key provided via CLI does not match private_key_le_bytes in claim JSON"
+            "Private key provided via CLI does not match private_key_le_bytes in claim JSON. \
+             Ensure you are using the same private key that was used to generate the claim."
         );
     }
     cli_key_le.zeroize();

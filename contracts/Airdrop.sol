@@ -795,7 +795,7 @@ contract Airdrop is ReentrancyGuard {
         info.totalClaimed = totalClaimed;
         info.claimCount = claimCount;
         info.maxClaims = maxClaims;
-        info.remainingClaims = maxClaims > claimCount ? maxClaims - claimCount : 0;
+        info.remainingClaims = this.remainingClaims();
         info.isPaused = paused;
         info.claimDeadline = claimDeadline;
     }
