@@ -117,6 +117,12 @@ contract Airdrop is ReentrancyGuard {
 
     string public constant VERSION = "1.0.0";
 
+    /// @notice Returns the contract version string
+    /// @return The version string (e.g., "1.0.0")
+    function version() external pure returns (string memory) {
+        return VERSION;
+    }
+
     /// @notice Amount of tokens distributed per claim (100 tokens with 18 decimals)
     uint256 public constant CLAIM_AMOUNT = 100 * 10 ** 18;
 
@@ -573,6 +579,7 @@ contract Airdrop is ReentrancyGuard {
     /// @dev Subject to 2-day timelock. Must call scheduleWithdrawTokens first.
     /// @param amount Amount of tokens to withdraw
     function withdrawTokens(uint256 amount) external onlyOwner {
+        if (amount == 0) revert InvalidAmount();
         bytes32 operationHash = _hashOperation(abi.encode("withdrawTokens", amount));
         _executeTimelockedOperation(operationHash);
         _withdrawTokensInternal(amount);
@@ -645,6 +652,7 @@ contract Airdrop is ReentrancyGuard {
     function emergencyRecoverToken(address recoveryToken, uint256 amount) external onlyOwner {
         if (recoveryToken == address(0)) revert InvalidRecoveryToken();
         if (recoveryToken == address(token)) revert CannotRecoverAirdropToken();
+        if (amount == 0) revert InvalidAmount();
         bytes32 operationHash =
             _hashOperation(abi.encode("emergencyRecoverToken", recoveryToken, amount));
         _executeTimelockedOperation(operationHash);
