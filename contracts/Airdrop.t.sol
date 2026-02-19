@@ -1074,7 +1074,7 @@ contract AirdropTest is Test {
         smallVerifier.setVerify(true);
         Airdrop smallAirdrop =
             new Airdrop(address(smallToken), address(smallVerifier), merkleRoot, 10);
-        smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT);
+        assertTrue(smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT), "Transfer failed");
         vm.stopPrank();
 
         bytes32 nullifier = bytes32(uint256(999));
@@ -1093,7 +1093,7 @@ contract AirdropTest is Test {
         singleVerifier.setVerify(true);
         Airdrop singleAirdrop =
             new Airdrop(address(singleToken), address(singleVerifier), merkleRoot, 1);
-        singleToken.transfer(address(singleAirdrop), CLAIM_AMOUNT);
+        assertTrue(singleToken.transfer(address(singleAirdrop), CLAIM_AMOUNT), "Transfer failed");
         vm.stopPrank();
 
         bytes32 nullifier = bytes32(uint256(1));
@@ -1209,7 +1209,7 @@ contract AirdropTest is Test {
         smallVerifier.setVerify(true);
         Airdrop smallAirdrop =
             new Airdrop(address(smallToken), address(smallVerifier), merkleRoot, 2);
-        smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT * 2);
+        assertTrue(smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT * 2), "Transfer failed");
         vm.stopPrank();
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](3);
@@ -1495,7 +1495,7 @@ contract AirdropTest is Test {
         smallVerifier.setVerify(true);
         Airdrop smallAirdrop =
             new Airdrop(address(smallToken), address(smallVerifier), merkleRoot, 10);
-        smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT);
+        assertTrue(smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT), "Transfer failed");
         vm.stopPrank();
 
         Airdrop.ClaimParams[] memory claims = new Airdrop.ClaimParams[](2);
@@ -1932,7 +1932,7 @@ contract AirdropTest is Test {
         MockVerifier smallVerifier = new MockVerifier();
         Airdrop smallAirdrop =
             new Airdrop(address(smallToken), address(smallVerifier), merkleRoot, 10);
-        smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT);
+        assertTrue(smallToken.transfer(address(smallAirdrop), CLAIM_AMOUNT), "Transfer failed");
         vm.stopPrank();
 
         (bool isValid, string memory reason) = smallAirdrop.validateBatchClaimParams(claims);
